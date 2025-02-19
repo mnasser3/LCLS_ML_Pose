@@ -41,7 +41,6 @@ class RotationHead(nn.Module):
             R (torch.Tensor): Rotation matrix of shape (B,C, 3, 3).
         """
         sixd = self.fc(x)  # Shape: (B,C, 6)
-        print(sixd.shape)
         B, C, _ = sixd.shape
         # Flatten the candidate dimension into the batch dimension
         ortho6d_flat = sixd.view(B * C, 6)
@@ -100,14 +99,6 @@ if __name__ == "__main__":
     # Get the rotation matrices
     R = rot_head(latent)
     # print("Rotation Matrices Shape:\n", R)
-    
-
-    def is_SO3(R, atol=1e-6):
-        """Check if R is in SO(3): R^T R = I and det(R) = 1"""
-        I = torch.eye(3, device=R.device, dtype=R.dtype)
-        orthogonality = torch.allclose(R @ R.T, I, atol=atol)
-        determinant = torch.allclose(torch.det(R), torch.tensor(1.0, device=R.device, dtype=R.dtype), atol=atol)
-        return orthogonality and determinant
 
     for i in R[0]:
         print(i)

@@ -12,10 +12,9 @@ class DiffractionDataset(Dataset):
         Args:
             dataset_path (_str_): path to the dataset
         """
-        self.data = np.load(dataset_path)
-        assert isinstance(self.data, (list, np.ndarray))
-        for Q in self.data: # Q is a diffraction image of size Nx3
-            assert Q.shape[1] == 3 and Q.ndim == 2
+        self.data = np.load(dataset_path,allow_pickle=True)
+        if not isinstance(self.data, (list, np.ndarray)):
+            raise ValueError("Loaded dataset should be a list or numpy array of Nx3 arrays.")
         
     def __len__(self):
         """
@@ -28,6 +27,7 @@ class DiffractionDataset(Dataset):
         returns the i_th diffraction image (Nx3) in the dataset
         """
         Q_i = self.data[i]
+        Q_i = np.array(Q_i, dtype=np.float32)
         Q_i = torch.tensor(Q_i, dtype=torch.float32)
         return Q_i
     

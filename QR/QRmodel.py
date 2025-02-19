@@ -4,11 +4,10 @@ from blocks.encoder import *
 from blocks.unit_cell import *
 from blocks.rotation_head import *
 from blocks.diffraction_dataset import *
-from torch.utils.data import DataLoader
 import numpy as np
 
 
-class TestQtoRModel(nn.Module):
+class QtoRModel(nn.Module):
     """
     A test model that processes a batch of diffraction matrices Q_i:
       1. Uses a DeepSets encoder to get latent representation z (shape: [B, latent_dim]).
@@ -26,7 +25,7 @@ class TestQtoRModel(nn.Module):
         # Our rotation head now expects input dimension = latent_dim + 9 (flattened B candidate)
         self.rotation_head = RotationHead(input_dim=latent_dim + 9, hidden_dim=rotation_hidden)
     
-    def forward(self, Q_batch):
+    def forward(self, Q_batch,mask):
         """
         Args:
             Q_batch (torch.Tensor): A batch of diffraction matrices, shape [B, N, 3],
@@ -38,7 +37,7 @@ class TestQtoRModel(nn.Module):
         """  
         # Q_batch shape: [B, N, 3] -> z shape: [B, latent_dim]
         b = Q_batch.shape[0]
-        z = self.encoder(Q_batch)
+        z = self.encoder(Q_batch,mask)
         
         # unit_cell.forward() returns B_candidate of shape [C, 3, 3] -> flatten to [C, 9]
         B_candidates, _, _ = self.unit_cell()  
@@ -54,40 +53,6 @@ class TestQtoRModel(nn.Module):
         R = self.rotation_head(zB)
         return R
 
-# ----------------------
-# Example usage:
-if __name__ == "__main__":
-    # Suppose we have a batch of diffraction matrices.
-    # Let's say batch size B = 2, and each Q_i has N = 50 reciprocal vectors.
-    B = 7
-    N = 50
-    data = np.random.randn(B, N, 3)  # Simulated input batch
-    np.save("QR/test_diffraction_data.npy", data)
-    dataset = DiffractionDataset("test_diffraction_data.npy")
-    def collate_fn(batch):
-        return torch.stack(batch)
-    Q_batch = DataLoader(dataset, batch_size=B, collate_fn=collate_fn)
-    
-    # Instantiate the test model.
-    m=torch.tensor([ 48.275, 49.23, 75.38, 2.81, 8.2, 11.98], dtype=torch.float32)
-    s=torch.tensor([ 48.275, 49.23, 75.38, 2.81, 8.2, 11.98], dtype=torch.float32)
-    par=False
-    model = TestQtoRModel(latent_dim=64,num_theta_samples=1, encoder_hidden=128, rotation_hidden=128,theta_isParam=par,theta_mu=m,theta_diagS=s)
-
-    for Q in Q_batch:
-        R = model(Q)
-    print("R_candidates shape:", R.shape)  # Should be[B, C, 3, 3]
-    
-    def is_SO3(R, atol=1e-6):
-        """Check if R is in SO(3): R^T R = I and det(R) = 1"""
-        I = torch.eye(3, device=R.device, dtype=R.dtype)
-        orthogonality = torch.allclose(R @ R.T, I, atol=atol)
-        determinant = torch.allclose(torch.det(R), torch.tensor(1.0, device=R.device, dtype=R.dtype), atol=atol)
-        return orthogonality and determinant
-    for k in R:
-        for i in k:
-            if not is_SO3(i):
-                print(is_SO3(i))
             
 
 

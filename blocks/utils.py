@@ -66,3 +66,10 @@ def compute_rotation_matrix_from_ortho6d(ortho6d):
     
     rotation_matrix = torch.cat((x, y, z), dim=2)  # [batch, 3, 3]
     return rotation_matrix
+
+def is_SO3(R, atol=1e-6):
+    """Check if R is in SO(3): R^T R = I and det(R) = 1"""
+    I = torch.eye(3, device=R.device, dtype=R.dtype)
+    orthogonality = torch.allclose(R @ R.T, I, atol=atol)
+    determinant = torch.allclose(torch.det(R), torch.tensor(1.0, device=R.device, dtype=R.dtype), atol=atol)
+    return orthogonality and determinant
