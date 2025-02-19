@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from utils import *
+from blocks.utils import *
 
 class RotationHead(nn.Module):
     """

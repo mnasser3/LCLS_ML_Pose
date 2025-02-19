@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
-from encoder import *
-from unit_cell import *
-from rotation_head import *
-from diffraction_dataset import *
+from blocks.encoder import *
+from blocks.unit_cell import *
+from blocks.rotation_head import *
+from blocks.diffraction_dataset import *
 from torch.utils.data import DataLoader
 import numpy as np
 
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     B = 7
     N = 50
     data = np.random.randn(B, N, 3)  # Simulated input batch
-    np.save("test_diffraction_data.npy", data)
+    np.save("QR/test_diffraction_data.npy", data)
     dataset = DiffractionDataset("test_diffraction_data.npy")
     def collate_fn(batch):
         return torch.stack(batch)
