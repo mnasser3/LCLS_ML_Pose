@@ -4,7 +4,7 @@ from QR.utils import *
 if __name__ == '__main__':
     B = 5
     N = 4
-    data_gen(B,N) 
+    data_gen(B,N,3,7,"QH") 
     dataset = DiffractionDataset("QR/test_diffraction_data.npy")
     dataloader = DataLoader(dataset, batch_size=B, collate_fn=collate_fn)
 
@@ -23,7 +23,7 @@ if __name__ == '__main__':
     model = QtoRModel(latent_dim=64,num_theta_samples=2, encoder_hidden=128, rotation_hidden=128,theta_isParam=par,theta_mu=m,theta_diagS=s)
 
     for Q,_,mask in dataloader:
-        R = model(Q,mask)
+        R,_,_= model(Q,mask)
         print("R_candidates shape:", R.shape)  # Should be[B, C, 3, 3]
         print("Example R_candidate:\n", R[0, 0],(is_SO3(R[0,0])))
 

@@ -22,7 +22,6 @@ class QtoRModel(nn.Module):
         super().__init__()
         self.encoder = Encoder(input_dim=3, hidden_dim=encoder_hidden, output_dim=latent_dim)
         self.unit_cell = UnitCell(isParam=theta_isParam, num_samples=num_theta_samples, mu=theta_mu, diag_S=theta_diagS)  
-        # Our rotation head now expects input dimension = latent_dim + 9 (flattened B candidate)
         self.rotation_head = RotationHead(input_dim=latent_dim + 9, hidden_dim=rotation_hidden)
     
     def forward(self, Q_batch,mask):
@@ -37,7 +36,7 @@ class QtoRModel(nn.Module):
         """  
         # Q_batch shape: [B, N, 3] -> z shape: [B, latent_dim]
         b = Q_batch.shape[0]
-        z = self.encoder(Q_batch,mask)
+        z = self.encoder(Q_batch,mask) # z shape: [B, latent_dim]
         
         # unit_cell.forward() returns B_candidate of shape [C, 3, 3] -> flatten to [C, 9]
         B_candidates, _, _ = self.unit_cell()  
@@ -51,7 +50,7 @@ class QtoRModel(nn.Module):
         
         # The rotation head expects input shape [B, C, input_dim] and outputs R of shape [B, C, 3, 3]
         R = self.rotation_head(zB)
-        return R
+        return R, B_candidates, z
 
             
 

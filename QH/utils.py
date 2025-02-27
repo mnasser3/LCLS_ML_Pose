@@ -20,10 +20,10 @@ def collate_fn(batch):
     mask = torch.arange(max_length, device=device)[None, :] < lengths[:, None]
     return padded_Q, lengths, mask
 
-def data_gen(B,N,min=3,max=5,q="QR"):
+def data_gen(B,min=3,max=5,q="QH"):
     data = []
     for i in range(B):
-        N = np.random.randint(3, 5)
-        diffraction_image = np.random.randn(N, 3)
+        N = np.random.randint(min, max)
+        diffraction_image = np.random.randint(min,max,size=(N,3))
         data.append(diffraction_image)
     np.save(f"{q}/test_diffraction_data.npy", np.array(data, dtype=object))
