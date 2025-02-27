@@ -44,12 +44,14 @@ class UnitCell(nn.Module):
     def forward(self):
         if self.isParam is False: # if unit cell parameters are given
             B = self.theta_to_B(self.fixed_theta.unsqueeze(0))
-            return B, None, None
+            O = self.theta_to_O(self.fixed_theta.unsqueeze(0))
+            return B, O,None, None
         else: #TODO: Log-Normal Distribution
             self.q_dist = dist.Normal(self.q_mu, torch.sqrt(torch.exp(self.q_logS)))
             thetas_sampled = self.q_dist.rsample((self.num_samples,))
             B = self.theta_to_B(thetas_sampled)
-            return B, self.q_mu, self.q_logS
+            O = self.theta_to_O(thetas_sampled)
+            return B, O, self.q_mu, self.q_logS
     
     def theta_to_B(self,theta): 
         """
@@ -80,8 +82,7 @@ class UnitCell(nn.Module):
         vol_sqrt_term= torch.clamp(vol_sqrt_term, min=eps)
         V = a * b * c * torch.sqrt(vol_sqrt_term)
         V = torch.clamp(V, min=eps)
-        sin_gamma = torch.clamp(torch.abs(sin_gamma), min=eps) 
-        sin_gamma =torch.sign(sin_gamma)*sin_gamma
+        sin_gamma = torch.sign(sin_gamma)*torch.clamp(torch.abs(sin_gamma), min=eps) 
         
         A_inv = torch.zeros((theta.shape[0],3, 3), dtype=theta.dtype, device=theta.device)
         A_inv[:,0, 0] = 1/a
@@ -100,16 +101,78 @@ class UnitCell(nn.Module):
             B = A_inv.mT
         return B
     
+
+    def theta_to_O(self, theta):
+        """
+        Convert unit cell parameters θ into the real-space basis matrix O(θ)
+        for a triclinic unit cell.
+
+        O is given by the 3×3 matrix:
+            [ a,            b*cosγ,                                    c*cosβ              ]
+            [ 0,            b*sinγ,    c*(cosα - cosβ*cosγ) / sinγ                           ]
+            [ 0,            0,         V / (a*b*sinγ)                                         ]
+
+        with
+            V = a*b*c * sqrt(1 - cos²α - cos²β - cos²γ + 2*cosα*cosβ*cosγ)
+
+        Args:
+            theta: Tensor of shape (N, 6), each row is [a, b, c, α, β, γ].
+
+        Returns:
+            O: Tensor of shape (N, 3, 3), the real-space basis matrix for each set of parameters.
+        """
+        a, b, c, alpha, beta, gamma = (
+            theta[:, 0],
+            theta[:, 1],
+            theta[:, 2],
+            theta[:, 3],
+            theta[:, 4],
+            theta[:, 5],
+        )
+
+        cos_alpha = torch.cos(alpha)
+        cos_beta  = torch.cos(beta)
+        cos_gamma = torch.cos(gamma)
+        sin_gamma = torch.sin(gamma)
+
+        eps = 1e-3
+        a = torch.clamp(a, min=eps)
+        b = torch.clamp(b, min=eps)
+        c = torch.clamp(c, min=eps)
+
+        vol_sqrt_term = 1.0 - cos_alpha**2 - cos_beta**2 - cos_gamma**2 + 2.0 * cos_alpha * cos_beta * cos_gamma
+        vol_sqrt_term = torch.clamp(vol_sqrt_term, min=eps)
+
+        V = a * b * c * torch.sqrt(vol_sqrt_term)
+        V = torch.clamp(V, min=eps)
+
+        sin_gamma = torch.sign(sin_gamma) * torch.clamp(torch.abs(sin_gamma), min=eps)
+
+        O = torch.zeros((theta.shape[0], 3, 3), dtype=theta.dtype, device=theta.device)
+
+        O[:, 0, 0] = a
+        O[:, 0, 1] = b * cos_gamma
+        O[:, 0, 2] = c * cos_beta
+        O[:, 1, 1] = b * sin_gamma
+        O[:, 1, 2] = c * (cos_alpha - cos_beta * cos_gamma) / sin_gamma
+        O[:, 2, 2] = V / (a * b * sin_gamma)
+        return O
+
+    
 if __name__ == '__main__':
     # Test UnitCell
     mu = torch.tensor([86.22, 95.07, 117.53, 89.985, 93.626, 95.41], dtype=torch.float32)
     diag_S = torch.tensor([ 48.275, 49.23, 75.38, 2.81, 8.2, 11.98], dtype=torch.float32)
-    unit_cell = UnitCell(isParam=True,mu=mu,diag_S=diag_S,num_samples=2)
-    B, mu_theta, S = unit_cell()
+    unit_cell = UnitCell(isParam=False,mu=mu,diag_S=diag_S,num_samples=2)
+    B, O, mu_theta, S = unit_cell()
     print()
     print(B)
     print(B.shape)
+
+    print("O\n",torch.linalg.inv(B.mT))
     print()
+    print(O)
+    
     # print(mu_theta)
     # print(mu_theta.shape)
     # print()

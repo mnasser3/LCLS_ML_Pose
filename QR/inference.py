@@ -25,6 +25,7 @@ if __name__ == '__main__':
     for Q,_,mask in dataloader:
         R = model(Q,mask)
         print("R_candidates shape:", R.shape)  # Should be[B, C, 3, 3]
+        print("Example R_candidate:\n", R[0, 0],(is_SO3(R[0,0])))
 
         for k in R:
             for i in k:
