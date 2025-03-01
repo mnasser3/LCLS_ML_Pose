@@ -8,7 +8,7 @@ class UnitCell(nn.Module):
     Variational Inference (VI) model for unit cell parameters θ.
     
     θ = (a, b, c, α,β,γ) is modeled as a variable with learnable mean and standard deviation
-    #NOTE: alpha, beta, gamma are in radians
+    #NOTE: alpha, beta, gamma are in degrees.
     Attributes:
         mu_theta (torch.nn.Parameter): Mean of the variational distribution.
         log_sigma_theta (torch.nn.Parameter): Log of standard deviation (to ensure positivity).
