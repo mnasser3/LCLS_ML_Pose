@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.distributions as dist
+import numpy as np
 
 class UnitCell(nn.Module):
     """
@@ -69,14 +70,14 @@ class UnitCell(nn.Module):
                 [0, bsinγ, c(cosα - cosβcosγ)/sinγ],
                 [0, 0, V/(a*b*sinγ)]
         """
-        a, b, c, alpha, beta, gamma = theta[:, 0], theta[:, 1], theta[:, 2], theta[:, 3], theta[:, 4], theta[:, 5]
+        a, b, c, alpha, beta, gamma = theta[:, 0], theta[:, 1], theta[:, 2], torch.deg2rad(theta[:, 3]), torch.deg2rad(theta[:, 4]), torch.deg2rad(theta[:, 5])
 
         cos_alpha = torch.cos(alpha)
         cos_beta  = torch.cos(beta)
         cos_gamma = torch.cos(gamma)
         sin_gamma = torch.sin(gamma)
         
-        eps=1e-3
+        eps=1e-6
         a,b,c = torch.clamp(a,min=eps),torch.clamp(b,min=eps),torch.clamp(c,min=eps)
         vol_sqrt_term = 1 - cos_alpha**2 - cos_beta**2 - cos_gamma**2 + 2 * cos_alpha * cos_beta * cos_gamma
         vol_sqrt_term= torch.clamp(vol_sqrt_term, min=eps)
@@ -87,7 +88,8 @@ class UnitCell(nn.Module):
         A_inv = torch.zeros((theta.shape[0],3, 3), dtype=theta.dtype, device=theta.device)
         A_inv[:,0, 0] = 1/a
         A_inv[:,0, 1] = -cos_gamma / (a * sin_gamma)
-        A_inv[:,0, 2] = ((b * cos_gamma * c * (cos_alpha - cos_beta * cos_gamma)) / sin_gamma - b * c * cos_beta * sin_gamma) / V
+        print("SSSS ",-cos_gamma / (a * sin_gamma))
+        A_inv[:,0, 2] = (((b * cos_gamma * c * (cos_alpha - cos_beta * cos_gamma)) / sin_gamma) - b * c * cos_beta * sin_gamma) / V
         
         A_inv[:,1, 1] = 1 / (b * sin_gamma)
         A_inv[:,1, 2] = (-a * c * (cos_alpha - cos_beta * cos_gamma)) / (V * sin_gamma)
@@ -101,8 +103,18 @@ class UnitCell(nn.Module):
             B = A_inv.mT
         return B
     
+if __name__ == '__main__':
+    # Test UnitCell
+    mu = torch.tensor([93.1316, 93.1316, 130.5489, 90.0, 90.0, 120.0], dtype=torch.float32)
+    diag_S = torch.tensor([ 48.275, 49.23, 75.38, 2.81, 8.2, 11.98], dtype=torch.float32)
+    unit_cell = UnitCell(isParam=False,mu=mu,diag_S=diag_S,num_samples=2)
+    B, mu_theta, S = unit_cell()
+    print()
+    print(B)
+    print(B.shape)
 
-    def theta_to_O(self, theta):
+                
+def theta_to_O(self, theta):
         """
         Convert unit cell parameters θ into the real-space basis matrix O(θ)
         for a triclinic unit cell.
@@ -113,4 +125,53 @@ class UnitCell(nn.Module):
             [ 0,            0,         V / (a*b*sinγ)                                         ]
 
         with
-  
+            V = a*b*c * sqrt(1 - cos²α - cos²β - cos²γ + 2*cosα*cosβ*cosγ)
+
+        Args:
+            theta: Tensor of shape (N, 6), each row is [a, b, c, α, β, γ].
+
+        Returns:
+            O: Tensor of shape (N, 3, 3), the real-space basis matrix for each set of parameters.
+        """
+        a, b, c, alpha, beta, gamma = (
+            theta[:, 0],
+            theta[:, 1],
+            theta[:, 2],
+            theta[:, 3],
+            theta[:, 4],
+            theta[:, 5],
+        )
+
+        cos_alpha = torch.cos(alpha)
+        cos_beta  = torch.cos(beta)
+        cos_gamma = torch.cos(gamma)
+        sin_gamma = torch.sin(gamma)
+
+        eps = 1e-3
+        a = torch.clamp(a, min=eps)
+        b = torch.clamp(b, min=eps)
+        c = torch.clamp(c, min=eps)
+
+        vol_sqrt_term = 1.0 - cos_alpha**2 - cos_beta**2 - cos_gamma**2 + 2.0 * cos_alpha * cos_beta * cos_gamma
+        vol_sqrt_term = torch.clamp(vol_sqrt_term, min=eps)
+
+        V = a * b * c * torch.sqrt(vol_sqrt_term)
+        V = torch.clamp(V, min=eps)
+
+        sin_gamma = torch.sign(sin_gamma) * torch.clamp(torch.abs(sin_gamma), min=eps)
+
+        O = torch.zeros((theta.shape[0], 3, 3), dtype=theta.dtype, device=theta.device)
+
+        O[:, 0, 0] = a
+        O[:, 0, 1] = b * cos_gamma
+        O[:, 0, 2] = c * cos_beta
+        O[:, 1, 1] = b * sin_gamma
+        O[:, 1, 2] = c * (cos_alpha - cos_beta * cos_gamma) / sin_gamma
+        O[:, 2, 2] = V / (a * b * sin_gamma)
+        return O
+
+                    
+                    
+            
+        
+        
