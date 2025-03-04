@@ -88,7 +88,6 @@ class UnitCell(nn.Module):
         A_inv = torch.zeros((theta.shape[0],3, 3), dtype=theta.dtype, device=theta.device)
         A_inv[:,0, 0] = 1/a
         A_inv[:,0, 1] = -cos_gamma / (a * sin_gamma)
-        print("SSSS ",-cos_gamma / (a * sin_gamma))
         A_inv[:,0, 2] = (((b * cos_gamma * c * (cos_alpha - cos_beta * cos_gamma)) / sin_gamma) - b * c * cos_beta * sin_gamma) / V
         
         A_inv[:,1, 1] = 1 / (b * sin_gamma)

@@ -5,9 +5,9 @@ from QR.QRmodel import *
 if __name__ == '__main__':
     B = 3
     C=2
-    N = 4
-    data_gen(B,3,7,"QH")  # B,N,3 (N varying per batch)
-    dataset = DiffractionDataset("QH/test_diffraction_data.npy")
+    N = None 
+    #data_gen(B,3,7,"QH")  # B,N,3 (N varying per batch)
+    dataset = DiffractionDataset("data/output_data.npy")
     dataloader = DataLoader(dataset, batch_size=B, collate_fn=collate_fn)
 
     # for padded_Q, lengths, mask in dataloader:
