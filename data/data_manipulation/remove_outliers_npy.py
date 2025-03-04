@@ -38,5 +38,6 @@ plt.gca().add_artist(legend1)
 plt.xlabel("Value")
 plt.ylabel("Frequency")
 plt.title("Distribution of Unit Cell Parameters")
-plt.show()
 plt.savefig("data/BEFOREunit_cell_parameters_distribution.png")
+plt.show()
+
