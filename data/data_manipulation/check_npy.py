@@ -26,6 +26,9 @@ print()
 print("Unit Cell", type(data[0]["Unit_Cell"]))
 print()
 print("Each sample has keys:",data[0].keys())  
+print("data length:",len(data))  
+
+
 
 
  

@@ -15,12 +15,11 @@ if __name__ == '__main__':
         print(f"Mask example: {mask[0]}")
         break
 
-
     m=torch.tensor([86.22, 95.07, 117.53, 89.985, 93.626, 95.41], dtype=torch.float32)
     s=torch.tensor([48.275, 49.23, 75.38, 2.81, 8.2, 11.98], dtype=torch.float32)
     par=False
     C=2
-    model = QtoRModel(latent_dim=64,num_theta_samples=2, encoder_hidden=128, rotation_hidden=128,theta_isParam=par,theta_mu=m,theta_diagS=s)
+    model = QtoRModel(latent_dim=32,num_theta_samples=2, encoder_hidden=64, rotation_hidden=16,theta_isParam=par,theta_mu=m,theta_diagS=s)
 
     for Q,_,mask in dataloader:
         R,_,_= model(Q,mask)
