@@ -77,7 +77,7 @@ class UnitCell(nn.Module):
         cos_gamma = torch.cos(gamma)
         sin_gamma = torch.sin(gamma)
         
-        eps=1e-6
+        eps=1e-3
         a,b,c = torch.clamp(a,min=eps),torch.clamp(b,min=eps),torch.clamp(c,min=eps)
         vol_sqrt_term = 1 - cos_alpha**2 - cos_beta**2 - cos_gamma**2 + 2 * cos_alpha * cos_beta * cos_gamma
         vol_sqrt_term= torch.clamp(vol_sqrt_term, min=eps)

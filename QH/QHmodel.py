@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from blocks.encoder import *
+from blocks.encoderDS import *
 from blocks.unit_cell import *
 from blocks.rotation_head import *
 from blocks.diffraction_dataset import *
