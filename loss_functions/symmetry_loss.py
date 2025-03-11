@@ -11,7 +11,7 @@ class SymmetryAwareLossLoop(nn.Module):
     This version uses simple Python for-loops for clarity.
     """
 
-    def __init__(self, base_loss: nn.Module, symm_group = "P 61 2 2"):
+    def __init__(self, base_loss: nn.Module, symm_group = "P 61 2 2",device='cpu'):
         """
         Args:
           base_loss: An instance of GeodesicLoss (or any rotation-based loss).
@@ -28,6 +28,7 @@ class SymmetryAwareLossLoop(nn.Module):
 
         rot_mats = torch.stack(rot_list, dim=0)
         self.register_buffer("rot_mats", rot_mats)
+        self.device=device
 
     def forward(self, R_pred: torch.Tensor, R_gt: torch.Tensor) -> torch.Tensor:
         """
@@ -42,7 +43,7 @@ class SymmetryAwareLossLoop(nn.Module):
         # Expand dimensions to allow broadcasting
         R_gt_exp = R_gt[:, None, None, :, :]  # (B, 1, 1, 3, 3)
         R_pred_exp = R_pred[:, :, None, :, :]  # (B, C, 1, 3, 3)
-        rot_mats_exp = self.rot_mats[None, None, :, :, :]  # (1, 1, S, 3, 3)
+        rot_mats_exp = self.rot_mats[None, None, :, :, :].to(self.device)  # (1, 1, S, 3, 3)
 
         # Apply all symmetry transformations to the ground-truth rotations
         R_gt_sym = torch.matmul(rot_mats_exp, R_gt_exp)  # (B, 1, S, 3, 3)

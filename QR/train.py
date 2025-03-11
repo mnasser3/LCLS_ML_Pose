@@ -59,12 +59,12 @@ def load_train_val_data(dataset_path, batch_size=4, val_ratio=0.2):
 def train_QtoR_supervised(model, dataset_path, num_epochs=1, batch_size=3, lr=1e-3, device='cpu'):
     train_loader, val_loader = load_train_val_data(dataset_path, batch_size=batch_size, val_ratio=0.2)
     optimizer = optim.Adam(model.parameters(), lr=lr)
-    
+    print(device)
     model.to(device)
     model.train()
     #loss_function = GeodesicLoss()
     #loss_function = LieAlgebraLoss()
-    loss_function = SymmetryAwareLossLoop(base_loss=LieAlgebraLoss(reduction='none'), symm_group="P 61 2 2")
+    loss_function = SymmetryAwareLossLoop(base_loss=LieAlgebraLoss(reduction='none'), symm_group="P 61 2 2",device=device)
     best_val_loss = float('inf')
     best_train_loss = 0.95
     log_file = "training_log.txt"
@@ -79,7 +79,7 @@ def train_QtoR_supervised(model, dataset_path, num_epochs=1, batch_size=3, lr=1e
             
             optimizer.zero_grad()
             R_candidates, _, _ = model(padded_Q, mask)
-            R_pred = R_candidates[:,:,:,:]  
+            R_pred = R_candidates[:,:,:,:].to(device) 
 
             loss = loss_function(R_pred, U_gt)
             loss.backward()
@@ -101,7 +101,7 @@ def train_QtoR_supervised(model, dataset_path, num_epochs=1, batch_size=3, lr=1e
                 mask = mask.to(device)
                 U_gt = U_gt.to(device)
                 R_candidates, _, _ = model(padded_Q, mask)
-                R_pred = R_candidates[:,:,:,:] # if geodesic or lie use 0 for axis 1
+                R_pred = R_candidates[:,:,:,:].to(device)  # if geodesic or lie use 0 for axis 1
                 loss_val = loss_function(R_pred, U_gt)
                 val_loss += loss_val.item()
         avg_val_loss = val_loss / len(val_loader)
