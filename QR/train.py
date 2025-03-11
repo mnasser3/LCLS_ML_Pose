@@ -117,6 +117,93 @@ def train_QtoR_supervised(model, dataset_path, num_epochs=1, batch_size=3, lr=1e
         scheduler.step()
     print("Finished training.")
     
+def train_QtoR_supervised_multipleQ(model, dataset_path, num_epochs=1, batch_size=3, lr=1e-3, device='cpu'):
+    train_loader, val_loader = load_train_val_data(dataset_path, batch_size=batch_size, val_ratio=0.2)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    print(device)
+    model.to(device)
+    model.train()
+    
+    loss_function = SymmetryAwareLossLoop(base_loss=LieAlgebraLoss(reduction='none'), symm_group="P 61 2 2",device=device)
+    best_val_loss = float('inf')
+    best_train_loss = 0.95
+    log_file = "training_log.txt"
+    scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=1e-6)
+
+    sg = gemmi.SpaceGroup("P 61 2 2")
+    go = sg.operations()
+
+    for epoch in range(num_epochs):
+        epoch_loss = 0.0
+        model.train()
+
+        for padded_Q, lengths, mask, U_gt in train_loader:
+            padded_Q = padded_Q.to(device)  
+            mask = mask.to(device)
+            U_gt = U_gt.to(device)      
+
+            optimizer.zero_grad()
+
+            best_loss = torch.full((padded_Q.shape[0],), float('inf'), device=device)  # Initialize best loss for each sample
+            for op in go:
+                R_sym = torch.tensor(np.array(op.rot) / op.DEN, dtype=torch.float32, device=device)
+                transformed_Q = torch.einsum('ij,bnj->bni', R_sym, padded_Q)  # Apply symmetry
+
+                R_candidates, _, _ = model(transformed_Q, mask)
+                R_pred = R_candidates[:,:,:,:].to(device) 
+
+                loss = loss_function(R_pred, U_gt)
+                best_loss = torch.minimum(best_loss, loss)  # Keep the minimum loss
+
+            # Now backprop using the **minimum** loss per batch
+            final_loss = best_loss.mean()  # Average over batch
+            final_loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+            epoch_loss += final_loss.item()
+
+        avg_train_loss = epoch_loss / len(train_loader)
+
+        # Validation
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for padded_Q, lengths, mask, U_gt in val_loader:
+                padded_Q = padded_Q.to(device)
+                mask = mask.to(device)
+                U_gt = U_gt.to(device)
+
+                best_val_loss_batch = torch.full((padded_Q.shape[0],), float('inf'), device=device)
+                for op in go:
+                    R_sym = torch.tensor(np.array(op.rot) / op.DEN, dtype=torch.float32, device=device)
+                    transformed_Q = torch.einsum('ij,bnj->bni', R_sym, padded_Q)
+
+                    R_candidates, _, _ = model(transformed_Q, mask)
+                    R_pred = R_candidates[:,:,:,:].to(device)  
+                    loss_val = loss_function(R_pred, U_gt)
+
+                    best_val_loss_batch = torch.minimum(best_val_loss_batch, loss_val)  # Keep best loss
+
+                val_loss += best_val_loss_batch.mean().item()  # Average over batch
+
+        avg_val_loss = val_loss / len(val_loader)
+
+        if epoch % 10 == 0:
+            print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
+            with open(log_file, "a") as f:
+                log_message = f"Epoch {epoch+1}/{num_epochs} - Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}"
+                f.write(log_message + "\n") 
+
+        if avg_train_loss < best_train_loss:
+            best_train_loss = avg_train_loss
+            torch.save(model.state_dict(), "qtor_model_best.pth")
+
+        scheduler.step()
+
+    print("Finished training.")
+
+
+
 if __name__ == "__main__":
     def train():
         dataset_path = "data/output_data.npy"  
@@ -132,7 +219,8 @@ if __name__ == "__main__":
                             theta_isParam=theta_as_param, theta_mu=m, theta_diagS=s)
         #model.load_state_dict(torch.load("qtor_model_best.pth"))
 
-        train_QtoR_supervised(model, dataset_path, num_epochs=6000, batch_size=32, lr=1e-4, device='cpu')
+        #train_QtoR_supervised(model, dataset_path, num_epochs=6000, batch_size=32, lr=1e-4, device='cpu')
+        train_QtoR_supervised_multipleQ(model, dataset_path, num_epochs=6000, batch_size=32, lr=1e-4, device='cpu')
 
     train()
     
