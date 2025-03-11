@@ -8,7 +8,10 @@ import numpy as np
 from tqdm import tqdm
 from QR.QRmodel import QtoRModel
 from loss_functions.geodesic_loss import GeodesicLoss
+from loss_functions.liealgebra_loss import LieAlgebraLoss
+from loss_functions.symmetry_loss import SymmetryAwareLossLoop
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
+import gemmi
 
 class Supervised_QtoR_DiffractionDataset(DiffractionDataset):
     def __init__(self, dataset_path):
@@ -59,8 +62,12 @@ def train_QtoR_supervised(model, dataset_path, num_epochs=1, batch_size=3, lr=1e
     
     model.to(device)
     model.train()
-    loss_function = GeodesicLoss()
+    #loss_function = GeodesicLoss()
+    #loss_function = LieAlgebraLoss()
+    loss_function = SymmetryAwareLossLoop(base_loss=LieAlgebraLoss(reduction='none'), symm_group="P 61 2 2")
     best_val_loss = float('inf')
+    best_train_loss = 0.95
+    log_file = "training_log.txt"
     scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=1e-6)
     for epoch in range(num_epochs):
         epoch_loss = 0.0
@@ -72,18 +79,14 @@ def train_QtoR_supervised(model, dataset_path, num_epochs=1, batch_size=3, lr=1e
             
             optimizer.zero_grad()
             R_candidates, _, _ = model(padded_Q, mask)
-            R_pred = R_candidates[:,0,:,:]  
-            
+            R_pred = R_candidates[:,:,:,:]  
 
-            # print("R_pred:", R_pred[0])
-            # print("U_gt:", U_gt[0])
-
-                    
             loss = loss_function(R_pred, U_gt)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             epoch_loss += loss.item()
-            # print("Loss:", loss.item())
+            #print("Loss:", loss.item())
             # for name, param in model.named_parameters():
             #     if param.grad is not None:
             #         print(f"{name} gradient norm: {param.grad.norm()}")
@@ -98,15 +101,17 @@ def train_QtoR_supervised(model, dataset_path, num_epochs=1, batch_size=3, lr=1e
                 mask = mask.to(device)
                 U_gt = U_gt.to(device)
                 R_candidates, _, _ = model(padded_Q, mask)
-                R_pred = R_candidates[:,0,:,:] 
+                R_pred = R_candidates[:,:,:,:] # if geodesic or lie use 0 for axis 1
                 loss_val = loss_function(R_pred, U_gt)
                 val_loss += loss_val.item()
         avg_val_loss = val_loss / len(val_loader)
         if epoch % 10 == 0:
             print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
-        
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
+            with open(log_file, "a") as f:
+                log_message = f"Epoch {epoch+1}/{num_epochs} - Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}"
+                f.write(log_message + "\n") 
+        if avg_train_loss < best_train_loss:
+            best_train_loss = avg_train_loss
             torch.save(model.state_dict(), "qtor_model_best.pth")
 
         scheduler.step()
@@ -115,7 +120,6 @@ def train_QtoR_supervised(model, dataset_path, num_epochs=1, batch_size=3, lr=1e
 if __name__ == "__main__":
     def train():
         dataset_path = "data/output_data.npy"  
-        train_data,val_data = load_train_val_data(dataset_path, batch_size=16, val_ratio=0.2)
 
         unit_cells = np.array([entry["Unit_Cell"] for entry in np.load("data/output_data.npy", allow_pickle=True)])
 
@@ -124,13 +128,11 @@ if __name__ == "__main__":
         print(m,s)
         theta_as_param = False
 
-        model = QtoRModel(latent_dim=128, num_theta_samples=2, encoder_hidden=128, rotation_hidden=128,
+        model = QtoRModel(latent_dim=256, num_theta_samples=2, encoder_hidden=256, rotation_hidden=128,
                             theta_isParam=theta_as_param, theta_mu=m, theta_diagS=s)
+        #model.load_state_dict(torch.load("qtor_model_best.pth"))
 
-        train_QtoR_supervised(model, dataset_path, num_epochs=1000, batch_size=32, lr=1e-2, device='cpu')
-
-        print(f"Number of training samples: {len(train_data.dataset)}")
-        print(f"Number of validation samples: {len(val_data.dataset)}")
+        train_QtoR_supervised(model, dataset_path, num_epochs=6000, batch_size=32, lr=1e-4, device='cpu')
 
     train()
     
