@@ -62,9 +62,9 @@ def train_QtoR_supervised(model, dataset_path, num_epochs=1, batch_size=3, lr=1e
     print(device)
     model.to(device)
     model.train()
-    #loss_function = GeodesicLoss()
+    loss_function = GeodesicLoss()
     #loss_function = LieAlgebraLoss()
-    loss_function = SymmetryAwareLossLoop(base_loss=LieAlgebraLoss(reduction='none'), symm_group="P 61 2 2",device=device)
+    #loss_function = SymmetryAwareLossLoop(base_loss=LieAlgebraLoss(reduction='none'), symm_group="P 61 2 2",device=device)
     best_val_loss = float('inf')
     best_train_loss = 0.95
     log_file = "training_log.txt"

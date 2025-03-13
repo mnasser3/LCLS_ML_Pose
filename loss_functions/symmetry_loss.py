@@ -37,61 +37,24 @@ class SymmetryAwareLossLoop(nn.Module):
         R_gt: (B, 3, 3) - ground-truth rotation matrices
         Returns a scalar loss.
         """
-        B, C, _, _ = R_pred.shape  # Batch size, number of candidates
-        S = self.rot_mats.shape[0] # Number of symmetry operations
+        B, C, _, _ = R_pred.shape
+        S = self.rot_mats.shape[0]
 
-        # Expand dimensions to allow broadcasting
-        R_gt_exp = R_gt[:, None, None, :, :]  # (B, 1, 1, 3, 3)
-        R_pred_exp = R_pred[:, :, None, :, :]  # (B, C, 1, 3, 3)
-        rot_mats_exp = self.rot_mats[None, None, :, :, :].to(self.device)  # (1, 1, S, 3, 3)
+        R_gt_exp = R_gt[:, None, None, :, :]
+        R_pred_exp = R_pred[:, :, None, :, :]
+        rot_mats_exp = self.rot_mats[None, None, :, :, :].to(self.device)
 
-        # Apply all symmetry transformations to the ground-truth rotations
-        R_gt_sym = torch.matmul(rot_mats_exp, R_gt_exp)  # (B, 1, S, 3, 3)
+        R_gt_sym = torch.matmul(rot_mats_exp, R_gt_exp)
 
-        # Flatten for batch processing in self.base_loss
-        R_pred_flat = R_pred_exp.expand(-1, -1, S, -1, -1).reshape(B * C * S, 3, 3)  # (B*C*S, 3, 3)
-        R_gt_sym_flat = R_gt_sym.expand(-1, C, -1, -1, -1).reshape(B * C * S, 3, 3)  # (B*C*S, 3, 3)
+        R_pred_flat = R_pred_exp.expand(-1, -1, S, -1, -1).reshape(B * C * S, 3, 3)
+        R_gt_sym_flat = R_gt_sym.expand(-1, C, -1, -1, -1).reshape(B * C * S, 3, 3)
 
-        # Compute the geodesic loss in a batch-wise manner
-        all_losses = self.base_loss(R_pred_flat, R_gt_sym_flat)  # (B*C*S,)
+        all_losses = self.base_loss(R_pred_flat, R_gt_sym_flat)
 
-        # Reshape back to (B, C, S)
         all_losses = all_losses.view(B, C, S)
 
-        # Take the minimum loss over symmetry operations
-        min_loss_sym, _ = torch.min(all_losses, dim=2)  # (B, C)
+        min_loss_sym, _ = torch.min(all_losses, dim=2)
 
-        # Take the minimum loss over candidates
-        best_candidate_loss, _ = torch.min(min_loss_sym, dim=1)  # (B,)
+        best_candidate_loss, _ = torch.min(min_loss_sym, dim=1)
 
-        # Final mean over batch
         return best_candidate_loss.mean()
-
-    
-    def get_symmetry_rotations(self,space_group_name="P 61 2 2"):
-        sg = gemmi.SpaceGroup("P 61 2 2")
-        go = sg.operations()
-
-        rot_mats = []
-        for op in go:
-            R = np.array(op.rot, dtype=float) / op.DEN  
-            rot_mats.append(R)
-        rot_mats = np.stack(rot_mats, axis=0)  
-        return rot_mats
-
-
-
-
-
-
-
-
-
-if __name__ == "__main__":
-
-    sg = gemmi.SpaceGroup("P 61 2 2")
-    go = sg.operations()
-    for op in go:
-        R = np.array(op.rot,dtype=float) / op.DEN
-        print(R)
-
