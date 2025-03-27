@@ -53,4 +53,11 @@ class EncoderDS(nn.Module):
         return z
     
 if __name__ == '__main__':
-    # Test Enc
+    # Test Encoder
+    encoder = EncoderDS()
+    Q_i = torch.randn(3,10, 3) #BxNx3
+    z = encoder(Q_i)
+    print(z)
+    print(z.shape)
+        
+

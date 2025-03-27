@@ -8,14 +8,10 @@ class MultiHeadSelfAttention(nn.Module):
         self.mha = nn.MultiheadAttention(embed_dim, num_heads, batch_first=True)
 
     def forward(self, x, mask=None):
-        # x: [B, N, embed_dim]
-        # mask: [B, N] boolean; True for valid points.
         if mask is not None:
-            # key_padding_mask expects True for positions that should be ignored.
             key_padding_mask = ~mask.bool()
         else:
             key_padding_mask = None
-        # Self-attention: query, key, and value are all x.
         out, _ = self.mha(x, x, x, key_padding_mask=key_padding_mask)
         return out
 
@@ -42,14 +38,11 @@ class SetTransformerEncoder(nn.Module):
         )
 
     def forward(self, x, mask=None):
-        # x: [B, N, input_dim]
-        # mask: [B, N] (boolean) where True indicates a valid point.
         x = self.input_proj(x)  # [B, N, embed_dim]
         for layer in self.layers:
             residual = x
             x = layer(x, mask)
-            x = x + residual  # residual connection
-        # Pooling over the set using the mask if provided.
+            x = x + residual  
         if mask is not None:
             x = x * mask.unsqueeze(-1).float()  # zero out padded entries
             summed = torch.sum(x, dim=1)
@@ -57,6 +50,6 @@ class SetTransformerEncoder(nn.Module):
             pooled = summed / count
         else:
             pooled = torch.mean(x, dim=1)
-        # Pass pooled feature through FC layers.
+
         z = self.fc(pooled)
         return z
