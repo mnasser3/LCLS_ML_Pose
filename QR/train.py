@@ -32,7 +32,15 @@ class Supervised_QtoR_DiffractionDataset(DiffractionDataset):
         U_i = sample["U"] 
         Q_i = np.array(Q_i, dtype=np.float32)
         U_i = np.array(U_i, dtype=np.float32)
+        
+        # Normalize globally
         Q_i = (Q_i - self.global_mean) / (self.global_std + self.eps)
+        
+        # Normalize per-sample
+        # sample_mean = np.mean(Q_i, axis=0)
+        # sample_std = np.std(Q_i, axis=0) + 1e-6  
+        # Q_i = (Q_i - sample_mean) / sample_std
+        
         Q_i = torch.tensor(Q_i, dtype=torch.float32)
         U_i = torch.tensor(U_i, dtype=torch.float32)
         return Q_i, U_i
@@ -215,8 +223,8 @@ if __name__ == "__main__":
         print(m,s)
         theta_as_param = False
 
-        model = QtoRModel(latent_dim=256, num_theta_samples=2, encoder_hidden=256, rotation_hidden=128,
-                            theta_isParam=theta_as_param, theta_mu=m, theta_diagS=s)
+        model = QtoRModel(latent_dim=128, num_theta_samples=2, encoder_hidden=128, rotation_hidden=128,
+                            theta_isParam=theta_as_param, theta_mu=m, theta_diagS=s, use_fourier=True, fourier_mapping_size=16, fourier_scale=10.0)
         #model.load_state_dict(torch.load("qtor_model_best.pth"))
 
         #train_QtoR_supervised(model, dataset_path, num_epochs=6000, batch_size=32, lr=1e-4, device='cpu')
@@ -285,3 +293,7 @@ if __name__ == "__main__":
     # model = QtoRModel(latent_dim=128, num_theta_samples=2, encoder_hidden=128, rotation_hidden=128,
     #                     theta_isParam=theta_as_param, theta_mu=m, theta_diagS=s)
     # train_trivial(model, num_epochs=30, batch_size=8, lr=1e-3)
+    
+    
+    
+    

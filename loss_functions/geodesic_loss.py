@@ -42,7 +42,7 @@ class GeodesicLoss(nn.Module):
     def forward(self, input: Tensor, target: Tensor) -> Tensor:
         R_diffs = input @ target.permute(0, 2, 1)
         traces = R_diffs.diagonal(dim1=-2, dim2=-1).sum(-1)
-        dists = torch.acos(torch.clamp((traces - 1) / 2, -1 + self.eps, 1 - self.eps))
+        dists = torch.acos(torch.clamp((traces - 1) / 2, -1 + self.eps, 1 - self.eps)) #TODO: try without clamp
         if self.reduction == "none":
             return dists
         elif self.reduction == "mean":

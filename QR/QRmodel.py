@@ -5,6 +5,7 @@ from blocks.unit_cell import *
 from blocks.rotation_head import *
 from blocks.diffraction_dataset import *
 from blocks.encoderPN import *
+from blocks.fourier_mapping import *
 import numpy as np
 
 
@@ -19,9 +20,15 @@ class QtoRModel(nn.Module):
     Output R has shape: [B, C, 3, 3].
     """
     
-    def __init__(self, latent_dim=64, num_theta_samples=2, encoder_hidden=128, rotation_hidden=128,theta_isParam=False,theta_mu=None,theta_diagS=None):
+    def __init__(self, latent_dim=64, num_theta_samples=2, encoder_hidden=128, rotation_hidden=128,theta_isParam=False,theta_mu=None,theta_diagS=None, use_fourier=True, fourier_mapping_size=16, fourier_scale=10.0):
         super().__init__()
-        self.encoder = EncoderPN(input_dim=3, hidden_dim=encoder_hidden, output_dim=latent_dim)
+        self.use_fourier = use_fourier
+        if self.use_fourier:
+            self.fourier = FourierFeatureMapping(input_dim=3, mapping_size=fourier_mapping_size, scale=fourier_scale)
+            input_dim = 3 + 2 * fourier_mapping_size
+        else:
+            input_dim = 3
+        self.encoder = EncoderPN(input_dim=input_dim, hidden_dim=encoder_hidden, output_dim=latent_dim)
         self.unit_cell = UnitCell(isParam=theta_isParam, num_samples=num_theta_samples, mu=theta_mu, diag_S=theta_diagS)  
         self.rotation_head = RotationHead(input_dim=latent_dim + 9, hidden_dim=rotation_hidden)
         self.norm = nn.LayerNorm(latent_dim)
@@ -38,9 +45,15 @@ class QtoRModel(nn.Module):
         """  
         if mask is None:
             mask = torch.ones(Q_batch.size(0), Q_batch.size(1), dtype=torch.bool, device=Q_batch.device)
+
+        if self.use_fourier:
+            extra_features = self.fourier(Q_batch)  # [B, N, 2*mapping_size]
+        else:
+            extra_features = None
+
         # Q_batch shape: [B, N, 3] -> z shape: [B, latent_dim]
         b = Q_batch.shape[0]
-        z = self.encoder(Q_batch,mask) # z shape: [B, latent_dim]
+        z = self.encoder(Q_batch,mask,features=extra_features) # z shape: [B, latent_dim]
         
         # unit_cell.forward() returns B_candidate of shape [C, 3, 3] -> flatten to [C, 9]
         B_candidates, _, _ = self.unit_cell()  

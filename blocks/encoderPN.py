@@ -222,11 +222,11 @@ class EncoderPN(nn.Module):
             nn.Linear(hidden_dim, output_dim),
         )
 
-    def forward(self, Q_i, mask):
+    def forward(self, Q_i, mask,features=None):
         B, N, _ = Q_i.shape
 
-        xyz, features = self.sa1(Q_i, None, mask)  # Apply masking
-        z = torch.max(features, dim=-1)[0]  # Global max pooling
+        xyz, new_features = self.sa1(Q_i, features, mask)  # Apply masking
+        z = torch.max(new_features, dim=-1)[0]  # Global max pooling
         z = self.global_fc(z)  # Final embedding
         return z
 
