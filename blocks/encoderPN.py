@@ -227,6 +227,4 @@ class EncoderPN(nn.Module):
 
         xyz, new_features = self.sa1(Q_i, features, mask)  # Apply masking
         z = torch.max(new_features, dim=-1)[0]  # Global max pooling
-        z = self.global_fc(z)  # Final embedding
-        return z
-
+        z = self.global_fc(z)  # Final em

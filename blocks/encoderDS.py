@@ -42,6 +42,9 @@ class EncoderDS(nn.Module):
         """
         phi_Q_i = self.phi(Q_i) #BxNx3 -> BxNx128
         #print("Mean and std of phi_Q_i:", phi_Q_i.mean(dim=0), phi_Q_i.std(dim=0))
+        if mask is None:
+            mask = torch.ones(Q_i.shape[0], Q_i.shape[1], device=Q_i.device, dtype=Q_i.dtype)
+            
         phi_Q_i = phi_Q_i * mask.unsqueeze(-1) #Apply mask
         pooled = torch.sum(phi_Q_i, dim=1) / mask.sum(dim=1, keepdim=True).clamp(min=1)
         z = self.rho(pooled) 

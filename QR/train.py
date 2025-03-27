@@ -70,9 +70,9 @@ def train_QtoR_supervised(model, dataset_path, num_epochs=1, batch_size=3, lr=1e
     print(device)
     model.to(device)
     model.train()
-    loss_function = GeodesicLoss()
+    #loss_function = GeodesicLoss()
     #loss_function = LieAlgebraLoss()
-    #loss_function = SymmetryAwareLossLoop(base_loss=LieAlgebraLoss(reduction='none'), symm_group="P 61 2 2",device=device)
+    loss_function = SymmetryAwareLossLoop(base_loss=LieAlgebraLoss(reduction='none'), symm_group="P 61 2 2",device=device)
     best_val_loss = float('inf')
     best_train_loss = 0.95
     log_file = "training_log.txt"
@@ -124,6 +124,27 @@ def train_QtoR_supervised(model, dataset_path, num_epochs=1, batch_size=3, lr=1e
 
         scheduler.step()
     print("Finished training.")
+    
+
+if __name__ == "__main__":
+    def train():
+        dataset_path = "data/output_data.npy"  
+
+        unit_cells = np.array([entry["Unit_Cell"] for entry in np.load("data/output_data.npy", allow_pickle=True)])
+
+        m = torch.tensor(np.mean(unit_cells, axis=0), dtype=torch.float32)
+        s = torch.tensor(np.std(unit_cells, axis=0), dtype=torch.float32)
+        print(m,s)
+        theta_as_param = False
+
+        model = QtoRModel(latent_dim=128, num_theta_samples=2, encoder_hidden=128, rotation_hidden=128,
+                            theta_isParam=theta_as_param, theta_mu=m, theta_diagS=s, use_fourier=True, fourier_mapping_size=16, fourier_scale=10.0)
+        #model.load_state_dict(torch.load("qtor_model_best.pth"))
+
+        train_QtoR_supervised(model, dataset_path, num_epochs=6000, batch_size=32, lr=1e-4, device='cpu')
+        #train_QtoR_supervised_multipleQ(model, dataset_path, num_epochs=6000, batch_size=32, lr=1e-4, device='cpu')
+
+    train()
     
 def train_QtoR_supervised_multipleQ(model, dataset_path, num_epochs=1, batch_size=3, lr=1e-3, device='cpu'):
     train_loader, val_loader = load_train_val_data(dataset_path, batch_size=batch_size, val_ratio=0.2)
@@ -209,28 +230,6 @@ def train_QtoR_supervised_multipleQ(model, dataset_path, num_epochs=1, batch_siz
         scheduler.step()
 
     print("Finished training.")
-
-
-
-if __name__ == "__main__":
-    def train():
-        dataset_path = "data/output_data.npy"  
-
-        unit_cells = np.array([entry["Unit_Cell"] for entry in np.load("data/output_data.npy", allow_pickle=True)])
-
-        m = torch.tensor(np.mean(unit_cells, axis=0), dtype=torch.float32)
-        s = torch.tensor(np.std(unit_cells, axis=0), dtype=torch.float32)
-        print(m,s)
-        theta_as_param = False
-
-        model = QtoRModel(latent_dim=128, num_theta_samples=2, encoder_hidden=128, rotation_hidden=128,
-                            theta_isParam=theta_as_param, theta_mu=m, theta_diagS=s, use_fourier=True, fourier_mapping_size=16, fourier_scale=10.0)
-        #model.load_state_dict(torch.load("qtor_model_best.pth"))
-
-        #train_QtoR_supervised(model, dataset_path, num_epochs=6000, batch_size=32, lr=1e-4, device='cpu')
-        train_QtoR_supervised_multipleQ(model, dataset_path, num_epochs=6000, batch_size=32, lr=1e-4, device='cpu')
-
-    train()
     
 #2.11,2.14
 
