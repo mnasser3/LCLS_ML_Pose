@@ -61,4 +61,31 @@ class QtoRModel(nn.Module):
 
         # Q_batch shape: [B, N, 3] -> z shape: [B, latent_dim]
         b = Q_batch.shape[0]
-        #z = self.enc
+        #z = self.encoder(Q_batch,mask,features=extra_features) # for PN
+        z = self.encoder(Q_input, mask) #for DS and trans
+        
+        # unit_cell.forward() returns B_candidate of shape [C, 3, 3] -> flatten to [C, 9]
+        B_candidates, _, _ = self.unit_cell()  
+        c = B_candidates.shape[0]
+        B_flat = B_candidates.reshape(c, -1) 
+        # print("Mean and std of B_flat:", B_flat.mean(dim=0), B_flat.std(dim=0,unbiased=False))
+        
+        # Repeat z for each candidate B_i: shape becomes [B, C, latent_dim]
+        z_repeated = z.unsqueeze(1).expand(b, c, z.shape[-1])
+        B_flat_repeated = B_flat.unsqueeze(0).expand(b, c, 9)
+        z_norm = self.norm(z_repeated)  # Normalize only the latent part
+        zB = torch.cat([z_norm, 0.3 * B_flat_repeated], dim=2)
+        # The rotation head expects input shape [B, C, input_dim] and outputs R of shape [B, C, 3, 3]
+        R = self.rotation_head(zB)
+        
+        # Calculate mean and std deviation of R across B, where C is 1
+        R_mean = R.mean(dim=0)
+        R_std = R.std(dim=0)
+        # print("Mean of R across B:", R_mean)
+        # print("Std deviation of R across B:", R_std)
+        return R, B_candidates, z
+
+            
+
+
+
