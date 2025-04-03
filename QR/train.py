@@ -76,7 +76,7 @@ def train_QtoR_supervised(model, dataset_path, num_epochs=1, batch_size=3, lr=1e
     best_val_loss = float('inf')
     best_train_loss = 0.95
     log_file = "training_log.txt"
-    scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=1e-6)
+    #scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=1e-6)
     for epoch in range(num_epochs):
         epoch_loss = 0.0
         model.train()
@@ -122,7 +122,7 @@ def train_QtoR_supervised(model, dataset_path, num_epochs=1, batch_size=3, lr=1e
             best_train_loss = avg_train_loss
             torch.save(model.state_dict(), "qtor_model_best.pth")
 
-        scheduler.step()
+        #scheduler.step()
     print("Finished training.")
     
 
@@ -141,7 +141,7 @@ if __name__ == "__main__":
                             theta_isParam=theta_as_param, theta_mu=m, theta_diagS=s, use_fourier=True, fourier_mapping_size=16, fourier_scale=10.0)
         #model.load_state_dict(torch.load("qtor_model_best.pth"))
 
-        train_QtoR_supervised(model, dataset_path, num_epochs=6000, batch_size=32, lr=1e-4, device='cpu')
+        train_QtoR_supervised(model, dataset_path, num_epochs=6000, batch_size=32, lr=1e-4, device='cpu') #TODO: 1e-3
         #train_QtoR_supervised_multipleQ(model, dataset_path, num_epochs=6000, batch_size=32, lr=1e-4, device='cpu')
 
     train()

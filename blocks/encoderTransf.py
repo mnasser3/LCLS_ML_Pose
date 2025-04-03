@@ -16,7 +16,7 @@ class MultiHeadSelfAttention(nn.Module):
         return out
 
 class SetTransformerEncoder(nn.Module):
-    def __init__(self, input_dim=3, embed_dim=128, output_dim=64, num_heads=4, num_layers=2):
+    def __init__(self, input_dim=3, embed_dim=32, output_dim=64, num_heads=4, num_layers=2):
         """
         Args:
             input_dim: Dimensionality of input per point (can be 3 or enriched with Fourier features).
@@ -33,7 +33,7 @@ class SetTransformerEncoder(nn.Module):
         self.fc = nn.Sequential(
             nn.Linear(embed_dim, embed_dim),
             nn.PReLU(),
-            nn.BatchNorm1d(embed_dim),
+            #nn.BatchNorm1d(embed_dim),
             nn.Linear(embed_dim, output_dim)
         )
 
@@ -43,6 +43,7 @@ class SetTransformerEncoder(nn.Module):
             residual = x
             x = layer(x, mask)
             x = x + residual  
+            #TODO: add layer norm here
         if mask is not None:
             x = x * mask.unsqueeze(-1).float()  # zero out padded entries
             summed = torch.sum(x, dim=1)
