@@ -32,10 +32,8 @@ class QtoRModel(nn.Module):
         else:
             input_dim = 3
         #self.encoder = EncoderPN(input_dim=input_dim, hidden_dim=encoder_hidden, output_dim=latent_dim)
-        # self.encoder = EncoderDS(input_dim=input_dim, hidden_dim=encoder_hidden, output_dim=latent_dim)
-        self.encoder = SetTransformerEncoder(input_dim=input_dim, embed_dim=encoder_hidden, 
-                                        output_dim=latent_dim, num_heads=set_transformer_heads, 
-                                        num_layers=set_transformer_layers)
+        self.encoder = EncoderDS(input_dim=input_dim, hidden_dim=encoder_hidden, output_dim=latent_dim)
+        #self.encoder = SetTransformerEncoder(input_dim=input_dim, embed_dim=encoder_hidden, output_dim=latent_dim, num_heads=set_transformer_heads,num_layers=set_transformer_layers)
         self.unit_cell = UnitCell(isParam=theta_isParam, num_samples=num_theta_samples, mu=theta_mu, diag_S=theta_diagS)  
         self.rotation_head = RotationHead(input_dim=latent_dim + 9, hidden_dim=rotation_hidden)
         self.norm = nn.LayerNorm(latent_dim)
