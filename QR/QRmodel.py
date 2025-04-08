@@ -74,7 +74,7 @@ class QtoRModel(nn.Module):
         
         # for DS and Transformer
         z = self.encoder(Q_input, mask) #for DS and trans
-        z = self.dropout(z)
+        #z = self.dropout(z)
         
         # unit_cell.forward() returns B_candidate of shape [C, 3, 3] -> flatten to [C, 9]
         B_candidates, _, _ = self.unit_cell()  

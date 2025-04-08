@@ -24,16 +24,15 @@ class SymmetryAwareLossLoop(nn.Module):
         # Get symmetry operations in fractional space
         cell = gemmi.UnitCell(*cell)
         ops = gemmi.find_lattice_symmetry(cell, 'P', 3.0)
-        A = self.get_frac2cart_matrix(cell)
-        A_inv = np.linalg.inv(A)
+        B=(np.array(cell.frac.mat).T)
+        B_inv = np.array(cell.orth.mat).T
 
         for i, op in enumerate(ops):
             R_frac = np.array(op.rot, dtype=float) / op.DEN
-            R_cart = A @ R_frac @ A_inv
-            R = torch.tensor(R_cart, dtype=torch.float32)
+            R_recip = B @ R_frac.T @ B_inv
+            R = torch.tensor(R_recip, dtype=torch.float32)
             rot_list.append(R)
-        rot_mats = torch.stack(rot_list, dim=0)
-        print("h")
+        rot_mats = torch.stack(rot_list, dim=0) 
 
         # Check if all matrices in rot_mats are valid SO(3) matrices
         def is_so3(matrix, atol=1e-1):
@@ -71,12 +70,6 @@ class SymmetryAwareLossLoop(nn.Module):
         """
         B, C, _, _ = R_pred.shape
         S = self.rot_mats.shape[0]
-        
-        # Check if R_pred and R_gt are valid SO(3) matrices
-        def is_so3(matrix):
-            identity = torch.eye(3, device=matrix.device)
-            return torch.allclose(torch.matmul(matrix, matrix.transpose(-1, -2)), identity, atol=1e-6) and \
-                   torch.allclose(torch.det(matrix), torch.tensor(1.0, device=matrix.device), atol=1e-6)
 
         R_gt_exp = R_gt[:, None, None, :, :]
         R_pred_exp = R_pred[:, :, None, :, :]
