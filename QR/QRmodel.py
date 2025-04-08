@@ -37,6 +37,7 @@ class QtoRModel(nn.Module):
         self.unit_cell = UnitCell(isParam=theta_isParam, num_samples=num_theta_samples, mu=theta_mu, diag_S=theta_diagS)  
         self.rotation_head = RotationHead(input_dim=latent_dim + 9, hidden_dim=rotation_hidden)
         self.norm = nn.LayerNorm(latent_dim)
+        self.dropout = nn.Dropout(p=0.3)
     
     def forward(self, Q_batch,mask=None):
         """
@@ -73,6 +74,7 @@ class QtoRModel(nn.Module):
         
         # for DS and Transformer
         z = self.encoder(Q_input, mask) #for DS and trans
+        #z = self.dropout(z)
         
         # unit_cell.forward() returns B_candidate of shape [C, 3, 3] -> flatten to [C, 9]
         B_candidates, _, _ = self.unit_cell()  

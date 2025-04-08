@@ -50,18 +50,3 @@ class GeodesicLoss(nn.Module):
         elif self.reduction == "sum":
             return dists.sum()
     
-    # def forward(self, m1: Tensor, m2: Tensor) -> Tensor:
-    #     batch=m1.shape[0]
-    #     m = torch.bmm(m1, m2.transpose(1,2)) #batch*3*3
-        
-    #     cos = (  m[:,0,0] + m[:,1,1] + m[:,2,2] - 1 )/2
-    #     cos = torch.min(cos, torch.autograd.Variable(torch.ones(batch)) )
-    #     cos = torch.max(cos, torch.autograd.Variable(torch.ones(batch).device())*-1 )
-        
-        
-    #     theta = torch.acos(cos)
-        
-    #     #theta = torch.min(theta, 2*np.pi - theta)
-        
-        
-    #     return theta.mean()

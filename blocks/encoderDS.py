@@ -31,6 +31,7 @@ class EncoderDS(nn.Module):
             nn.BatchNorm1d(hidden_dim),
             nn.Linear(hidden_dim, output_dim),
         )
+        # self.dropout = nn.Dropout(p=0.3)
 
         
     def forward(self, Q_i, mask=None):
@@ -46,6 +47,7 @@ class EncoderDS(nn.Module):
             mask = torch.ones(Q_i.shape[0], Q_i.shape[1], device=Q_i.device, dtype=Q_i.dtype)
             
         phi_Q_i = phi_Q_i * mask.unsqueeze(-1) #Apply mask
+        # phi_Q_i = self.dropout(phi_Q_i)
         pooled = torch.sum(phi_Q_i, dim=1) / mask.sum(dim=1, keepdim=True).clamp(min=1)
         z = self.rho(pooled) 
         #print("Mean and std of z:", z.mean(dim=0), z.std(dim=0))

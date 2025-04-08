@@ -95,88 +95,92 @@ def load_train_val_data(dataset_path, batch_size=4, val_ratio=0.2):
     return train_loader, val_loader
 
 
-def train_QtoR_supervised(model, dataset_path, num_epochs=1, batch_size=3, lr=1e-3, device='cpu'):
+def train_QtoR_supervised(model, dataset_path, cell, num_epochs=1, batch_size=3, lr=1e-3, weight_decay=1e-4, device='cpu'):
     train_loader, val_loader = load_train_val_data(dataset_path, batch_size=batch_size, val_ratio=0.2)
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    print(device)
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     model.to(device)
     model.train()
     #loss_function = GeodesicLoss()
     #loss_function = LieAlgebraLoss()
-    loss_function = SymmetryAwareLossLoop(base_loss=GeodesicLoss(reduction='none'), symm_group="P 61 2 2",device=device)
+    loss_function = SymmetryAwareLossLoop(base_loss=GeodesicLoss(reduction='none'), cell=cell)
     best_val_loss = float('inf')
     best_train_loss = 0.95
     log_file = "training_log.txt"
     #scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=1e-6)
     for epoch in range(num_epochs):
         epoch_loss = 0.0
-        angle_error_train = 0.0
+        errors_train, errors_val = [], []
         model.train()
         for padded_Q, lengths, mask, U_gt in train_loader:
-            padded_Q = padded_Q.to(device)  
-            mask = mask.to(device)
-            U_gt = U_gt.to(device)      
+            padded_Q = padded_Q
+            mask = mask
+            U_gt = U_gt
             
             optimizer.zero_grad()
             R_candidates, _, _ = model(padded_Q, mask)
-            R_pred = R_candidates[:,:,:,:].to(device) 
+            R_pred = R_candidates[:, :, :, :] 
 
             loss = loss_function(R_pred, U_gt)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             epoch_loss += loss.item()
-            #print("Loss:", loss.item())
-            # for name, param in model.named_parameters():
-            #     if param.grad is not None:
-            #         print(f"{name} gradient norm: {param.grad.norm()}")
-            angle_error_train+= rotation_angle_error(R_pred[:, :, :, :], U_gt)
+            errors_train.append(loss.item())
             
         avg_train_loss = epoch_loss / len(train_loader)
-        avg_angle_error_train = angle_error_train / len(train_loader)
+
         
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
             for padded_Q, lengths, mask, U_gt in val_loader:
-                padded_Q = padded_Q.to(device)
-                mask = mask.to(device)
-                U_gt = U_gt.to(device)
+                padded_Q = padded_Q
+                mask = mask
+                U_gt = U_gt   
                 R_candidates, _, _ = model(padded_Q, mask)
-                R_pred = R_candidates[:,:,:,:].to(device)  # if geodesic or lie use 0 for axis 1
+                R_pred = R_candidates[:,:,:,:] # if geodesic or lie use 0 for axis 1
                 loss_val = loss_function(R_pred, U_gt)
                 val_loss += loss_val.item()
+                errors_val.append(loss_val.item())
+ 
         avg_val_loss = val_loss / len(val_loader)
         if epoch % 10 == 0:
-            print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}, Angle Error: {avg_angle_error_train:.4f}")
+            print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
+            
+            # print(f"mean and std of train loss: {np.mean(errors_train):.4f}, {np.std(errors_train):.4f}")
+            # print(f"max and min of train loss: {np.max(errors_train):.4f}, {np.min(errors_train):.4f}")
+            # print(f"mean and std of val loss: {np.mean(errors_val):.4f}, {np.std(errors_val):.4f}")
+            # print(f"max and min of val loss: {np.max(errors_val):.4f}, {np.min(errors_val):.4f}")
+            
+            # print(errors_train)
+            # print("#"*20)
+            # print(errors_val)
+            # print("]"*20)
+            
             with open(log_file, "a") as f:
                 log_message = f"Epoch {epoch+1}/{num_epochs} - Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}"
                 f.write(log_message + "\n") 
         if avg_train_loss < best_train_loss:
             best_train_loss = avg_train_loss
-            torch.save(model.state_dict(), "qtor_model_best.pth")
+            torch.save(model.state_dict(), "models_params_saved/qtor_model_best.pth")
 
         #scheduler.step()
     print("Finished training.")
-    
+
+def train():
+    dataset_path = "data/output_data.npy"  
+
+    unit_cells = np.array([entry["Unit_Cell"] for entry in np.load("data/output_data.npy", allow_pickle=True)])
+    m = torch.tensor(np.mean(unit_cells, axis=0), dtype=torch.float32)
+    s = torch.tensor(np.std(unit_cells, axis=0), dtype=torch.float32)
+    print(m,s)
+    theta_as_param = False
+
+    model = QtoRModel(latent_dim=128, num_theta_samples=2, encoder_hidden=128, rotation_hidden=128,
+                        theta_isParam=theta_as_param, theta_mu=m, theta_diagS=s, use_fourier=True, fourier_mapping_size=16, fourier_scale=10.0)
+    #model.load_state_dict(torch.load("qtor_model_best.pth"))
+    train_QtoR_supervised(model, dataset_path, cell=m, num_epochs=6000, batch_size=64, lr=1e-4, device='cpu')  
 
 if __name__ == "__main__":
-    def train():
-        dataset_path = "data/output_data.npy"  
-
-        unit_cells = np.array([entry["Unit_Cell"] for entry in np.load("data/output_data.npy", allow_pickle=True)])
-
-        m = torch.tensor(np.mean(unit_cells, axis=0), dtype=torch.float32)
-        s = torch.tensor(np.std(unit_cells, axis=0), dtype=torch.float32)
-        print(m,s)
-        theta_as_param = False
-
-        model = QtoRModel(latent_dim=128, num_theta_samples=2, encoder_hidden=128, rotation_hidden=128,
-                            theta_isParam=theta_as_param, theta_mu=m, theta_diagS=s, use_fourier=True, fourier_mapping_size=16, fourier_scale=10.0)
-        #model.load_state_dict(torch.load("qtor_model_best.pth"))
-
-        train_QtoR_supervised(model, dataset_path, num_epochs=6000, batch_size=32, lr=1e-4, device='cpu') #TODO: 1e-3
-        #train_QtoR_supervised_multipleQ(model, dataset_path, num_epochs=6000, batch_size=32, lr=1e-4, device='cpu')
-
     train()
     

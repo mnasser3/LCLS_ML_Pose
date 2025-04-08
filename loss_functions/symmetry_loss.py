@@ -11,7 +11,7 @@ class SymmetryAwareLossLoop(nn.Module):
     This version uses simple Python for-loops for clarity.
     """
 
-    def __init__(self, base_loss: nn.Module, symm_group = "P 61 2 2",device='cpu'):
+    def __init__(self, base_loss: nn.Module, cell=torch.tensor([93.1636, 93.1636, 130.6054, 90.0, 90.0, 120.0])):
         """
         Args:
           base_loss: An instance of GeodesicLoss (or any rotation-based loss).
@@ -20,15 +20,46 @@ class SymmetryAwareLossLoop(nn.Module):
         super().__init__()
         self.base_loss = base_loss
         rot_list = []
-        sg = gemmi.SpaceGroup(symm_group)
-        go = sg.operations()
-        for op in go:
-            R = torch.tensor(np.array(op.rot, dtype=float) / op.DEN, dtype=torch.float32)
-            rot_list.append(R)
+        
+        # Get symmetry operations in fractional space
+        cell = gemmi.UnitCell(*cell)
+        ops = gemmi.find_lattice_symmetry(cell, 'P', 3.0)
+        A = self.get_frac2cart_matrix(cell)
+        A_inv = np.linalg.inv(A)
 
+        for i, op in enumerate(ops):
+            R_frac = np.array(op.rot, dtype=float) / op.DEN
+            R_cart = A @ R_frac @ A_inv
+            R = torch.tensor(R_cart, dtype=torch.float32)
+            rot_list.append(R)
         rot_mats = torch.stack(rot_list, dim=0)
+
+        # Check if all matrices in rot_mats are valid SO(3) matrices
+        def is_so3(matrix, atol=1e-1):
+            identity = torch.eye(3, device=matrix.device)
+            RRT = torch.matmul(matrix, matrix.transpose(-1, -2))
+            ortho = torch.allclose(RRT, identity, atol=atol)
+            det = torch.det(matrix)
+            det_close = torch.isclose(det, torch.tensor(1.0, device=matrix.device), atol=atol)
+            return ortho and det_close
+
+        if not all(is_so3(matrix) for matrix in rot_mats.view(-1, 3, 3)):
+            for i, matrix in enumerate(rot_mats.view(-1, 3, 3)):
+                identity = torch.eye(3, device=matrix.device)
+                RRT = matrix @ matrix.transpose(-1, -2)
+                diff = RRT - identity
+                ortho_error = torch.norm(diff)
+                det = torch.det(matrix).item()
+
+                if not is_so3(matrix):
+                    print(f"Matrix {i} failed SO(3) check.")
+                    print(f"  Determinant     = {det:.6f}")
+                    print(f"  Orthogonality error (||RᵀR - I||) = {ortho_error:.6e}")
+                    if np.isclose(det, -1.0, atol=1e-3):
+                        print("  -> Determinant is approximately -1: improper rotation")
+            raise ValueError("rot_mats contains matrices that are not valid SO(3) rotations.")
+
         self.register_buffer("rot_mats", rot_mats)
-        self.device=device
 
     def forward(self, R_pred: torch.Tensor, R_gt: torch.Tensor) -> torch.Tensor:
         """
@@ -39,22 +70,57 @@ class SymmetryAwareLossLoop(nn.Module):
         """
         B, C, _, _ = R_pred.shape
         S = self.rot_mats.shape[0]
+        
+        # Check if R_pred and R_gt are valid SO(3) matrices
+        def is_so3(matrix):
+            identity = torch.eye(3, device=matrix.device)
+            return torch.allclose(torch.matmul(matrix, matrix.transpose(-1, -2)), identity, atol=1e-6) and \
+                   torch.allclose(torch.det(matrix), torch.tensor(1.0, device=matrix.device), atol=1e-6)
+
+        # Validate R_pred
+        if not all(is_so3(matrix) for matrix in R_pred.view(-1, 3, 3)):
+            raise ValueError("R_pred contains matrices that are not valid SO(3) rotations.")
+
+        # Validate R_gt
+        if not all(is_so3(matrix) for matrix in R_gt.view(-1, 3, 3)):
+            raise ValueError("R_gt contains matrices that are not valid SO(3) rotations.")
 
         R_gt_exp = R_gt[:, None, None, :, :]
         R_pred_exp = R_pred[:, :, None, :, :]
-        rot_mats_exp = self.rot_mats[None, None, :, :, :].to(self.device)
+        rot_mats_exp = self.rot_mats[None, None, :, :, :].to(R_pred.device)
 
-        R_gt_sym = torch.matmul(rot_mats_exp, R_gt_exp)
+        R_gt_sym = torch.matmul(R_gt_exp, rot_mats_exp)
+        
+        if not all(is_so3(matrix) for matrix in R_gt_sym.view(-1, 3, 3)):
+            raise ValueError("R_gt_sym contains matrices that are not valid SO(3) rotations.")
 
         R_pred_flat = R_pred_exp.expand(-1, -1, S, -1, -1).reshape(B * C * S, 3, 3)
         R_gt_sym_flat = R_gt_sym.expand(-1, C, -1, -1, -1).reshape(B * C * S, 3, 3)
+        
+        if not all(is_so3(matrix) for matrix in R_pred_flat.view(-1, 3, 3)):
+            raise ValueError("R_pred contains matrices that are not valid SO(3) rotations.")
+
+        if not all(is_so3(matrix) for matrix in R_gt_sym_flat.view(-1, 3, 3)):
+            raise ValueError("R_gt_sym_flat contains matrices that are not valid SO(3) rotations.")
 
         all_losses = self.base_loss(R_pred_flat, R_gt_sym_flat)
 
         all_losses = all_losses.view(B, C, S)
 
-        min_loss_sym, _ = torch.min(all_losses, dim=2)
+        avg_loss_over_C = all_losses.mean(dim=1)  # average over C
+        min_loss_sym, _ = torch.min(avg_loss_over_C, dim=1)  # min over S
 
-        best_candidate_loss, _ = torch.min(min_loss_sym, dim=1)
+        return min_loss_sym.mean()
 
-        return best_candidate_loss.mean()
+    def get_frac2cart_matrix(self,cell: gemmi.UnitCell):
+        a, b, c = cell.a, cell.b, cell.c
+        alpha, beta, gamma = np.radians([cell.alpha, cell.beta, cell.gamma])
+        cosa, cosb, cosg = np.cos([alpha, beta, gamma])
+        sing = np.sin(gamma)
+        V = cell.volume
+        mat = np.array([
+            [a, b * cosg, c * cosb],
+            [0, b * sing, c * (cosa - cosb * cosg) / sing],
+            [0,     0,   V / (a * b * sing)]
+        ])
+        return mat
