@@ -56,7 +56,7 @@ class QtoRModel(nn.Module):
         # For Transformer + DS
         if self.use_fourier:
             fourier_feats = self.fourier(Q_batch)  # Shape: [B, N, 2*mapping_size]
-            Q_input = torch.cat([Q_batch, fourier_feats], dim=-1, device= Q_batch.device)  # Now shape: [B, N, 3 + 2*mapping_size]
+            Q_input = torch.cat([Q_batch, fourier_feats], dim=-1)  # Now shape: [B, N, 3 + 2*mapping_size]
         else:
             Q_input = Q_batch
         
@@ -74,7 +74,7 @@ class QtoRModel(nn.Module):
         
         # for DS and Transformer
         z = self.encoder(Q_input, mask) #for DS and trans
-        #z = self.dropout(z)
+        z = self.dropout(z)
         
         # unit_cell.forward() returns B_candidate of shape [C, 3, 3] -> flatten to [C, 9]
         B_candidates, _, _ = self.unit_cell()  

@@ -182,6 +182,7 @@ def train():
                         theta_isParam=theta_as_param, theta_mu=m, theta_diagS=s, use_fourier=True, fourier_mapping_size=16, fourier_scale=10.0)
     #model.load_state_dict(torch.load("qtor_model_best.pth"))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(device)
     train_QtoR_supervised(model, dataset_path, cell=m, num_epochs=6000, batch_size=64, lr=1e-4, device=device)  
 
 if __name__ == "__main__":
