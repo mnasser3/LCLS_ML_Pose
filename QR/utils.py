@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 import torch
 
-def collate_fn(batch):
+def collate_fn(batch,device=torch.device("cpu")):
     """
     Collate function that pads variable-length Q_i tensors.
     Each Q_i is of shape (N_i, 3).
@@ -13,7 +13,6 @@ def collate_fn(batch):
         lengths: Tensor of original lengths for each Q_i.
         mask: Tensor of shape (B, max_length) where True indicates a valid vector and False is padding.
     """
-    device = batch[0].device
     lengths = torch.tensor([q.shape[0] for q in batch], dtype=torch.long, device=device)
     padded_Q = pad_sequence(batch, batch_first=True, padding_value=0.0).to(device)
     max_length = padded_Q.size(1)

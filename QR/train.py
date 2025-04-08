@@ -77,26 +77,28 @@ class Supervised_QtoR_DiffractionDataset(DiffractionDataset):
         return Q_i, U_i
 
 
-def supervised_collate(batch):
+def supervised_collate(batch, device=torch.device("cpu")):
     Q_tuple, U_tuple = zip(*batch)
-    padded_Q, lengths, mask = collate_fn(list(Q_tuple))
-    U_tensor = torch.stack(U_tuple)
+    padded_Q, lengths, mask = collate_fn(list(Q_tuple), device=device)
+    U_tensor = torch.stack(U_tuple).to(device)
     return padded_Q, lengths, mask, U_tensor
 
-def load_train_val_data(dataset_path, batch_size=4, val_ratio=0.2):
+
+def load_train_val_data(dataset_path, batch_size=4, val_ratio=0.2, device=torch.device("cpu")):
     full_dataset = Supervised_QtoR_DiffractionDataset(dataset_path)
     n = len(full_dataset)
-    val_size = int(n* val_ratio)
+    val_size = int(n * val_ratio)
     train_size = n - val_size
     train_dataset, val_dataset = torch.utils.data.random_split(full_dataset, [train_size, val_size])
-    
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=supervised_collate, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=supervised_collate, shuffle=False)
+    collate = lambda batch: supervised_collate(batch, device=device)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=collate, shuffle=False)
     return train_loader, val_loader
 
 
+
 def train_QtoR_supervised(model, dataset_path, cell, num_epochs=1, batch_size=3, lr=1e-3, weight_decay=1e-4, device='cpu'):
-    train_loader, val_loader = load_train_val_data(dataset_path, batch_size=batch_size, val_ratio=0.2)
+    train_loader, val_loader = load_train_val_data(dataset_path, batch_size=batch_size, device=device)
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     model.to(device)
     model.train()
@@ -179,7 +181,8 @@ def train():
     model = QtoRModel(latent_dim=128, num_theta_samples=2, encoder_hidden=128, rotation_hidden=128,
                         theta_isParam=theta_as_param, theta_mu=m, theta_diagS=s, use_fourier=True, fourier_mapping_size=16, fourier_scale=10.0)
     #model.load_state_dict(torch.load("qtor_model_best.pth"))
-    train_QtoR_supervised(model, dataset_path, cell=m, num_epochs=6000, batch_size=64, lr=1e-4, device='cpu')  
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    train_QtoR_supervised(model, dataset_path, cell=m, num_epochs=6000, batch_size=64, lr=1e-4, device=device)  
 
 if __name__ == "__main__":
     train()
