@@ -33,6 +33,7 @@ class SymmetryAwareLossLoop(nn.Module):
             R = torch.tensor(R_cart, dtype=torch.float32)
             rot_list.append(R)
         rot_mats = torch.stack(rot_list, dim=0)
+        print("h")
 
         # Check if all matrices in rot_mats are valid SO(3) matrices
         def is_so3(matrix, atol=1e-1):
@@ -77,31 +78,14 @@ class SymmetryAwareLossLoop(nn.Module):
             return torch.allclose(torch.matmul(matrix, matrix.transpose(-1, -2)), identity, atol=1e-6) and \
                    torch.allclose(torch.det(matrix), torch.tensor(1.0, device=matrix.device), atol=1e-6)
 
-        # Validate R_pred
-        if not all(is_so3(matrix) for matrix in R_pred.view(-1, 3, 3)):
-            raise ValueError("R_pred contains matrices that are not valid SO(3) rotations.")
-
-        # Validate R_gt
-        if not all(is_so3(matrix) for matrix in R_gt.view(-1, 3, 3)):
-            raise ValueError("R_gt contains matrices that are not valid SO(3) rotations.")
-
         R_gt_exp = R_gt[:, None, None, :, :]
         R_pred_exp = R_pred[:, :, None, :, :]
         rot_mats_exp = self.rot_mats[None, None, :, :, :].to(R_pred.device)
 
         R_gt_sym = torch.matmul(R_gt_exp, rot_mats_exp)
-        
-        if not all(is_so3(matrix) for matrix in R_gt_sym.view(-1, 3, 3)):
-            raise ValueError("R_gt_sym contains matrices that are not valid SO(3) rotations.")
 
         R_pred_flat = R_pred_exp.expand(-1, -1, S, -1, -1).reshape(B * C * S, 3, 3)
         R_gt_sym_flat = R_gt_sym.expand(-1, C, -1, -1, -1).reshape(B * C * S, 3, 3)
-        
-        if not all(is_so3(matrix) for matrix in R_pred_flat.view(-1, 3, 3)):
-            raise ValueError("R_pred contains matrices that are not valid SO(3) rotations.")
-
-        if not all(is_so3(matrix) for matrix in R_gt_sym_flat.view(-1, 3, 3)):
-            raise ValueError("R_gt_sym_flat contains matrices that are not valid SO(3) rotations.")
 
         all_losses = self.base_loss(R_pred_flat, R_gt_sym_flat)
 
