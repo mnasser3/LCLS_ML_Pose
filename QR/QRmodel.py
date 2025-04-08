@@ -37,6 +37,7 @@ class QtoRModel(nn.Module):
         self.unit_cell = UnitCell(isParam=theta_isParam, num_samples=num_theta_samples, mu=theta_mu, diag_S=theta_diagS)  
         self.rotation_head = RotationHead(input_dim=latent_dim + 9, hidden_dim=rotation_hidden)
         self.norm = nn.LayerNorm(latent_dim)
+        #self.norm2 = nn.LayerNorm(9)
         self.dropout = nn.Dropout(p=0.3)
     
     def forward(self, Q_batch,mask=None):
@@ -86,7 +87,8 @@ class QtoRModel(nn.Module):
         z_repeated = z.unsqueeze(1).expand(b, c, z.shape[-1])
         B_flat_repeated = B_flat.unsqueeze(0).expand(b, c, 9)
         z_norm = self.norm(z_repeated)  # Normalize only the latent part
-        zB = torch.cat([z_norm, 0.3 * B_flat_repeated], dim=2)
+        B_flat_norm = self.norm2(B_flat_repeated)
+        zB = torch.cat([z_norm, 0.3 * B_flat_norm], dim=2)
         # The rotation head expects input shape [B, C, input_dim] and outputs R of shape [B, C, 3, 3]
         R = self.rotation_head(zB)
         

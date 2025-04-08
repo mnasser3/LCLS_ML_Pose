@@ -164,7 +164,7 @@ def train_QtoR_supervised(model, dataset_path, cell, num_epochs=1, batch_size=3,
                 f.write(log_message + "\n") 
         if avg_train_loss < best_train_loss:
             best_train_loss = avg_train_loss
-            torch.save(model.state_dict(), "models_params_saved/qtor_model_best.pth")
+            torch.save(model.state_dict(), "models_params_saved/DSSqtor_model_best.pth")
 
         #scheduler.step()
     print("Finished training.")
@@ -187,4 +187,3 @@ def train():
 
 if __name__ == "__main__":
     train()
-    

@@ -70,7 +70,15 @@ class SymmetryAwareLossLoop(nn.Module):
         """
         B, C, _, _ = R_pred.shape
         S = self.rot_mats.shape[0]
-
+        
+        def is_so3(matrix, atol=1e-1):
+            identity = torch.eye(3, device=matrix.device)
+            RRT = torch.matmul(matrix, matrix.transpose(-1, -2))
+            ortho = torch.allclose(RRT, identity, atol=atol)
+            det = torch.det(matrix)
+            det_close = torch.isclose(det, torch.tensor(1.0, device=matrix.device), atol=atol)
+            return ortho and det_close
+        
         R_gt_exp = R_gt[:, None, None, :, :]
         R_pred_exp = R_pred[:, :, None, :, :]
         rot_mats_exp = self.rot_mats[None, None, :, :, :].to(R_pred.device)
@@ -79,6 +87,12 @@ class SymmetryAwareLossLoop(nn.Module):
 
         R_pred_flat = R_pred_exp.expand(-1, -1, S, -1, -1).reshape(B * C * S, 3, 3)
         R_gt_sym_flat = R_gt_sym.expand(-1, C, -1, -1, -1).reshape(B * C * S, 3, 3)
+        
+        # Check if SO(3) matrices
+        # if not all(is_so3(matrix) for matrix in R_pred_flat.reshape(-1, 3, 3)):
+        #     raise ValueError("R_pred_exp contains matrices that are not valid SO(3) rotations.")
+        # if not all(is_so3(matrix) for matrix in R_gt_sym_flat.reshape(-1, 3, 3)):
+        #     raise ValueError("R_gt_sym contains matrices that are not valid SO(3) rotations.")
 
         all_losses = self.base_loss(R_pred_flat, R_gt_sym_flat)
 
@@ -88,16 +102,3 @@ class SymmetryAwareLossLoop(nn.Module):
         min_loss_sym, _ = torch.min(avg_loss_over_C, dim=1)  # min over S
 
         return min_loss_sym.mean()
-
-    def get_frac2cart_matrix(self,cell: gemmi.UnitCell):
-        a, b, c = cell.a, cell.b, cell.c
-        alpha, beta, gamma = np.radians([cell.alpha, cell.beta, cell.gamma])
-        cosa, cosb, cosg = np.cos([alpha, beta, gamma])
-        sing = np.sin(gamma)
-        V = cell.volume
-        mat = np.array([
-            [a, b * cosg, c * cosb],
-            [0, b * sing, c * (cosa - cosb * cosg) / sing],
-            [0,     0,   V / (a * b * sing)]
-        ])
-        return mat
