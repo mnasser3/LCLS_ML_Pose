@@ -21,7 +21,7 @@ class EncoderDS(nn.Module):
         super().__init__()        
         self.phi = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
-            nn.PReLU(),  # ELU activation instead of LeakyReLU
+            nn.PReLU(),  
             nn.Linear(hidden_dim, hidden_dim),
             nn.PReLU()
         )

@@ -14,36 +14,6 @@ from loss_functions.frobenius_loss import FrobeniusLoss
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
 import gemmi
 
-
-def rotation_angle_error(
-    R_pred: torch.Tensor,   # shape (B, C, 3, 3)
-    R_gt: torch.Tensor,     # shape (B, 3, 3)
-    symm_group="P 61 2 2",
-    device="cpu",
-    eps=1e-6
-) -> torch.Tensor:
-    B, C, _, _ = R_pred.shape
-    sg = gemmi.SpaceGroup(symm_group)
-    rot_mats = torch.stack([
-        torch.tensor(np.array(op.rot, dtype=float) / op.DEN, dtype=torch.float32, device=device)
-        for op in sg.operations()
-    ])
-    S = rot_mats.shape[0]
-    R_gt_exp = R_gt[:, None, None, :, :]
-    R_pred_exp = R_pred[:, :, None, :, :]
-    symm_exp = rot_mats[None, None, :, :, :]
-    R_gt_sym = torch.matmul(symm_exp, R_gt_exp)
-    R_rel = torch.matmul(R_pred_exp, R_gt_sym.transpose(-2, -1))
-    trace = R_rel.diagonal(offset=0, dim1=-2, dim2=-1).sum(-1)
-    cos_theta = (trace - 1.0) / 2.0
-    cos_theta = torch.clamp(cos_theta, -1.0 + eps, 1.0 - eps)
-    theta = torch.acos(cos_theta)
-    min_over_sym = theta.min(dim=2)[0]
-    min_over_cand = min_over_sym.min(dim=1)[0]
-    return min_over_cand.mean()
-
-
-
 class Supervised_QtoR_DiffractionDataset(DiffractionDataset):
     def __init__(self, dataset_path):
         super().__init__(dataset_path)
@@ -84,14 +54,14 @@ def supervised_collate(batch, device=torch.device("cpu")):
     return padded_Q, lengths, mask, U_tensor
 
 
-def load_train_val_data(dataset_path, batch_size=4, val_ratio=0.05, device=torch.device("cpu")):
+def load_train_val_data(dataset_path, batch_size=64, val_ratio=0.1, device=torch.device("cpu")):
     full_dataset = Supervised_QtoR_DiffractionDataset(dataset_path)
     n = len(full_dataset)
     val_size = int(n * val_ratio)
     train_size = n - val_size
     train_dataset, val_dataset = torch.utils.data.random_split(full_dataset, [train_size, val_size])
     collate = lambda batch: supervised_collate(batch, device=device)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate, shuffle=False)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=collate, shuffle=False)
     return train_loader, val_loader
 
@@ -153,6 +123,7 @@ def train_QtoR_supervised(model, dataset_path, cell, num_epochs=1, batch_size=3,
                 errors_val.append(loss.item())  
 
         avg_val_loss = val_loss_total / val_samples_total
+        print(val_samples_total,total_samples)
         if epoch % 10 == 0:
             print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
             
@@ -185,12 +156,12 @@ def train():
     print(m,s)
     theta_as_param = False
 
-    model = QtoRModel(latent_dim=32, num_theta_samples=2, encoder_hidden=64, rotation_hidden=64,
+    model = QtoRModel(latent_dim=128, num_theta_samples=2, encoder_hidden=128, rotation_hidden=128,
                         theta_isParam=theta_as_param, theta_mu=m, theta_diagS=s, use_fourier=True, fourier_mapping_size=16, fourier_scale=10.0)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #model.load_state_dict(torch.load("models_params_saved/DSSqtor_model_best.pth",map_location=device))
+    #model.load_state_dict(torch.load("D.pth",map_location=device))
     print(device)
-    train_QtoR_supervised(model, dataset_path, cell=m, num_epochs=6000, batch_size=64, lr=1e-4, device=device)  
+    train_QtoR_supervised(model, dataset_path, cell=m, num_epochs=6000, batch_size=128, lr=1e-4, device=device)  
 
 if __name__ == "__main__":
     train()
