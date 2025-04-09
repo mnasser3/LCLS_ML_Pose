@@ -28,7 +28,7 @@ class QtoRModel(nn.Module):
         self.use_fourier = use_fourier
         if self.use_fourier:
             self.fourier = FourierFeatureMapping(input_dim=3, mapping_size=fourier_mapping_size, scale=fourier_scale)
-            input_dim = 3 + 2 * fourier_mapping_size + 11
+            input_dim = 3 + 2 * fourier_mapping_size 
         else:
             input_dim = 3
         #self.encoder = EncoderPN(input_dim=input_dim, hidden_dim=encoder_hidden, output_dim=latent_dim)
@@ -59,38 +59,38 @@ class QtoRModel(nn.Module):
             fourier_feats = self.fourier(Q_batch)  # Shape: [B, N, 2*mapping_size]
             Q_input = torch.cat([Q_batch, fourier_feats], dim=-1)  # Now shape: [B, N, 3 + 2*mapping_size]
             
-            b = Q_batch.shape[0]
-            n = Q_batch.shape[1]
-            maski = mask.unsqueeze(-1)  # [B, N, 1]
-            valid_counts = maski.sum(dim=1, keepdim=True).clamp(min=1)  # [B, 1, 1]
-            Q_masked = Q_batch * maski  # [B, N, 3]
-            Q_mean = Q_masked.sum(dim=1, keepdim=True) / valid_counts  # [B, 1, 3]
-            Q_centered = (Q_batch - Q_mean) * maski  # [B, N, 3]
-            cov = torch.bmm(Q_centered.transpose(1, 2), Q_centered)  # [B, 3, 3]
-            cov = cov / (valid_counts.squeeze(-1).squeeze(-1) - 1).clamp(min=1).view(-1, 1, 1)  # [B, 3, 3]
-            cov_flat = cov.view(b, -1) 
+            # b = Q_batch.shape[0]
+            # n = Q_batch.shape[1]
+            # maski = mask.unsqueeze(-1)  # [B, N, 1]
+            # valid_counts = maski.sum(dim=1, keepdim=True).clamp(min=1)  # [B, 1, 1]
+            # Q_masked = Q_batch * maski  # [B, N, 3]
+            # Q_mean = Q_masked.sum(dim=1, keepdim=True) / valid_counts  # [B, 1, 3]
+            # Q_centered = (Q_batch - Q_mean) * maski  # [B, N, 3]
+            # cov = torch.bmm(Q_centered.transpose(1, 2), Q_centered)  # [B, 3, 3]
+            # cov = cov / (valid_counts.squeeze(-1).squeeze(-1) - 1).clamp(min=1).view(-1, 1, 1)  # [B, 3, 3]
+            # cov_flat = cov.view(b, -1) 
 
-            mask_float=maski.float()
-            valid_counts=mask_float.sum(dim=1)
-            pairwise_mask = torch.bmm(mask_float, mask_float.transpose(1, 2))  # [B, N, N]
-            eye=torch.eye(n,device=Q_batch.device,dtype=Q_batch.dtype).unsqueeze(0)
-            offdiag_mask=(1.0-eye)*pairwise_mask
-            pairwise_dot=torch.bmm(Q_batch,Q_batch.transpose(1,2))
-            pairwise_vals=pairwise_dot*offdiag_mask
-            num_offdiag=offdiag_mask.sum(dim=(1,2)).clamp(min=1)
-            pairwise_mean=pairwise_vals.sum(dim=(1,2))/num_offdiag
-            diff=(pairwise_vals-pairwise_mean.view(-1,1,1))*offdiag_mask
-            num_offdiag=offdiag_mask.sum(dim=(1,2)).clamp(min=1)
-            pairwise_mean=pairwise_vals.sum(dim=(1,2))/num_offdiag
-            diff=(pairwise_vals-pairwise_mean.view(-1,1,1))*offdiag_mask
-            pairwise_std=torch.sqrt((diff**2).sum(dim=(1,2))/num_offdiag)
-            pairwise_summary=torch.stack([pairwise_mean,pairwise_std],dim=-1)
+            # mask_float=maski.float()
+            # valid_counts=mask_float.sum(dim=1)
+            # pairwise_mask = torch.bmm(mask_float, mask_float.transpose(1, 2))  # [B, N, N]
+            # eye=torch.eye(n,device=Q_batch.device,dtype=Q_batch.dtype).unsqueeze(0)
+            # offdiag_mask=(1.0-eye)*pairwise_mask
+            # pairwise_dot=torch.bmm(Q_batch,Q_batch.transpose(1,2))
+            # pairwise_vals=pairwise_dot*offdiag_mask
+            # num_offdiag=offdiag_mask.sum(dim=(1,2)).clamp(min=1)
+            # pairwise_mean=pairwise_vals.sum(dim=(1,2))/num_offdiag
+            # diff=(pairwise_vals-pairwise_mean.view(-1,1,1))*offdiag_mask
+            # num_offdiag=offdiag_mask.sum(dim=(1,2)).clamp(min=1)
+            # pairwise_mean=pairwise_vals.sum(dim=(1,2))/num_offdiag
+            # diff=(pairwise_vals-pairwise_mean.view(-1,1,1))*offdiag_mask
+            # pairwise_std=torch.sqrt((diff**2).sum(dim=(1,2))/num_offdiag)
+            # pairwise_summary=torch.stack([pairwise_mean,pairwise_std],dim=-1)
 
 
             # #Concatenate the two types of extra features: cov_flat (9-dim) and pairwise_summary (2-dim)
-            extra_features = torch.cat([cov_flat, pairwise_summary], dim=-1)   # [B, 11]
-            extra_features = extra_features.unsqueeze(1).expand(-1, n, -1)    # [B, N, 11]
-            Q_input = torch.cat([Q_input, extra_features], dim=-1)            # [B, N, D + 11]
+            # extra_features = torch.cat([cov_flat, pairwise_summary], dim=-1)   # [B, 11]
+            # extra_features = extra_features.unsqueeze(1).expand(-1, n, -1)    # [B, N, 11]
+            # Q_input = torch.cat([Q_input, extra_features], dim=-1)            # [B, N, D + 11]
             
         else:
             Q_input = Q_batch
@@ -112,7 +112,7 @@ class QtoRModel(nn.Module):
         # z = torch.cat([z, extra_features], dim=-1)  # [B, latent_dim + 11]
         
         
-        
+        b = Q_batch.shape[0]
         # unit_cell.forward() returns B_candidate of shape [C, 3, 3] -> flatten to [C, 9]
         B_candidates, _, _ = self.unit_cell()  
         c = B_candidates.shape[0]
