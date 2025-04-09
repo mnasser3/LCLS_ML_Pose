@@ -35,9 +35,9 @@ class QtoRModel(nn.Module):
         self.encoder = EncoderDS(input_dim=input_dim, hidden_dim=encoder_hidden, output_dim=latent_dim)
         #self.encoder = SetTransformerEncoder(input_dim=input_dim, embed_dim=encoder_hidden, output_dim=latent_dim, num_heads=set_transformer_heads,num_layers=set_transformer_layers)
         self.unit_cell = UnitCell(isParam=theta_isParam, num_samples=num_theta_samples, mu=theta_mu, diag_S=theta_diagS)  
-        self.rotation_head = RotationHead(input_dim=latent_dim + 9, hidden_dim=rotation_hidden)
-        self.norm = nn.LayerNorm(latent_dim)
-        #self.norm2 = nn.LayerNorm(9)
+        self.rotation_head = RotationHead(input_dim=latent_dim + 20, hidden_dim=rotation_hidden)
+        self.norm = nn.LayerNorm(latent_dim+20)
+        self.norm2 = nn.LayerNorm(9)
         self.dropout = nn.Dropout(p=0.3)
     
     def forward(self, Q_batch,mask=None):
@@ -69,6 +69,7 @@ class QtoRModel(nn.Module):
 
         # Q_batch shape: [B, N, 3] -> z shape: [B, latent_dim]
         b = Q_batch.shape[0]
+        n = Q_batch.shape[1]
         
         # for PN
         #z = self.encoder(Q_batch,mask,features=extra_features) 
@@ -76,6 +77,30 @@ class QtoRModel(nn.Module):
         # for DS and Transformer
         z = self.encoder(Q_input, mask) #for DS and trans
         #z = self.dropout(z)
+        
+        
+        
+        Q_mean = Q_batch.mean(dim=1, keepdim=True)              # [B, 1, 3]
+        Q_centered = Q_batch - Q_mean                           # [B, N, 3]
+        cov = torch.bmm(Q_centered.transpose(1, 2), Q_centered)   # [B, 3, 3]
+        cov = cov / (n - 1)                                     # [B, 3, 3]
+        cov_flat = cov.view(b, -1)                              # [B, 9]
+
+        Q_norm = F.normalize(Q_batch, dim=-1)  # [B, N, 3]
+        pairwise_dot = torch.bmm(Q_norm, Q_norm.transpose(1, 2))  # [B, N, N]
+        eye_mask = 1.0 - torch.eye(n, device=Q_batch.device, dtype=Q_batch.dtype).unsqueeze(0)  # [1, N, N]
+        pairwise_vals = pairwise_dot * eye_mask  # [B, N, N]
+        num_offdiag = n * (n - 1)
+        pairwise_mean = pairwise_vals.sum(dim=(1, 2)) / num_offdiag  # [B]
+        diff = (pairwise_vals - pairwise_mean.view(b, 1, 1)) * eye_mask
+        pairwise_std = torch.sqrt((diff ** 2).sum(dim=(1, 2)) / num_offdiag)  # [B]
+        pairwise_summary = torch.stack([pairwise_mean, pairwise_std], dim=-1)  # [B, 2]
+
+        # Concatenate the two types of extra features: cov_flat (9-dim) and pairwise_summary (2-dim)
+        extra_features = torch.cat([cov_flat, pairwise_summary], dim=-1)   # [B, 11]
+        z = torch.cat([z, extra_features], dim=-1)  # [B, latent_dim + 11]
+        
+        
         
         # unit_cell.forward() returns B_candidate of shape [C, 3, 3] -> flatten to [C, 9]
         B_candidates, _, _ = self.unit_cell()  
@@ -86,9 +111,9 @@ class QtoRModel(nn.Module):
         # Repeat z for each candidate B_i: shape becomes [B, C, latent_dim]
         z_repeated = z.unsqueeze(1).expand(b, c, z.shape[-1])
         B_flat_repeated = B_flat.unsqueeze(0).expand(b, c, 9)
-        z_norm = self.norm(z_repeated)  # Normalize only the latent part
-        B_flat_norm = self.norm2(B_flat_repeated)
-        zB = torch.cat([z_norm, 0.3 * B_flat_norm], dim=2)
+        #B_flat_norm = self.norm2(B_flat_repeated)
+        zB = torch.cat([z_repeated, 0.3 * B_flat_repeated], dim=2)
+        zB = self.norm(zB)
         # The rotation head expects input shape [B, C, input_dim] and outputs R of shape [B, C, 3, 3]
         R = self.rotation_head(zB)
         

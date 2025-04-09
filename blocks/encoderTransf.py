@@ -43,7 +43,7 @@ class SetTransformerEncoder(nn.Module):
             residual = x
             x = layer(x, mask)
             x = x + residual  
-            #TODO: add layer norm here
+            x = F.layer_norm(x, x.size()[1:])
         if mask is not None:
             x = x * mask.unsqueeze(-1).float()  # zero out padded entries
             summed = torch.sum(x, dim=1)

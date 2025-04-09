@@ -100,5 +100,4 @@ class SymmetryAwareLossLoop(nn.Module):
 
         avg_loss_over_C = all_losses.mean(dim=1)  # average over C
         min_loss_sym, _ = torch.min(avg_loss_over_C, dim=1)  # min over S
-
         return min_loss_sym.mean()

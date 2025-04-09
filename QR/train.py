@@ -84,7 +84,7 @@ def supervised_collate(batch, device=torch.device("cpu")):
     return padded_Q, lengths, mask, U_tensor
 
 
-def load_train_val_data(dataset_path, batch_size=4, val_ratio=0.2, device=torch.device("cpu")):
+def load_train_val_data(dataset_path, batch_size=4, val_ratio=0.05, device=torch.device("cpu")):
     full_dataset = Supervised_QtoR_DiffractionDataset(dataset_path)
     n = len(full_dataset)
     val_size = int(n * val_ratio)
@@ -106,11 +106,13 @@ def train_QtoR_supervised(model, dataset_path, cell, num_epochs=1, batch_size=3,
     #loss_function = LieAlgebraLoss()
     loss_function = SymmetryAwareLossLoop(base_loss=GeodesicLoss(reduction='none'), cell=cell)
     best_val_loss = float('inf')
-    best_train_loss = 0.95
+    best_train_loss = 0.07
     log_file = "training_log.txt"
     #scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=1e-6)
     for epoch in range(num_epochs):
         epoch_loss = 0.0
+        total_loss = 0.0
+        total_samples = 0
         errors_train, errors_val = [], []
         model.train()
         for padded_Q, lengths, mask, U_gt in train_loader:
@@ -128,12 +130,14 @@ def train_QtoR_supervised(model, dataset_path, cell, num_epochs=1, batch_size=3,
             optimizer.step()
             epoch_loss += loss.item()
             errors_train.append(loss.item())
-            
-        avg_train_loss = epoch_loss / len(train_loader)
-
+            batch_size = U_gt.shape[0]
+            total_loss += loss.item() * batch_size
+            total_samples += batch_size
+        avg_train_loss = total_loss / total_samples
         
         model.eval()
-        val_loss = 0.0
+        val_loss_total = 0.0
+        val_samples_total = 0
         with torch.no_grad():
             for padded_Q, lengths, mask, U_gt in val_loader:
                 padded_Q = padded_Q
@@ -141,11 +145,14 @@ def train_QtoR_supervised(model, dataset_path, cell, num_epochs=1, batch_size=3,
                 U_gt = U_gt   
                 R_candidates, _, _ = model(padded_Q, mask)
                 R_pred = R_candidates[:,:,:,:] # if geodesic or lie use 0 for axis 1
-                loss_val = loss_function(R_pred, U_gt)
-                val_loss += loss_val.item()
-                errors_val.append(loss_val.item())
- 
-        avg_val_loss = val_loss / len(val_loader)
+                loss = loss_function(R_pred, U_gt)
+                batch_size = U_gt.shape[0]
+
+                val_loss_total += loss.item() * batch_size
+                val_samples_total += batch_size
+                errors_val.append(loss.item())  
+
+        avg_val_loss = val_loss_total / val_samples_total
         if epoch % 10 == 0:
             print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
             
@@ -178,10 +185,10 @@ def train():
     print(m,s)
     theta_as_param = False
 
-    model = QtoRModel(latent_dim=128, num_theta_samples=2, encoder_hidden=128, rotation_hidden=128,
+    model = QtoRModel(latent_dim=32, num_theta_samples=2, encoder_hidden=64, rotation_hidden=64,
                         theta_isParam=theta_as_param, theta_mu=m, theta_diagS=s, use_fourier=True, fourier_mapping_size=16, fourier_scale=10.0)
-    #model.load_state_dict(torch.load("qtor_model_best.pth"))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #model.load_state_dict(torch.load("models_params_saved/DSSqtor_model_best.pth",map_location=device))
     print(device)
     train_QtoR_supervised(model, dataset_path, cell=m, num_epochs=6000, batch_size=64, lr=1e-4, device=device)  
 
