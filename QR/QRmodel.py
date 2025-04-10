@@ -35,9 +35,9 @@ class QtoRModel(nn.Module):
         self.encoder = EncoderDS(input_dim=input_dim, hidden_dim=encoder_hidden, output_dim=latent_dim)
         #self.encoder = SetTransformerEncoder(input_dim=input_dim, embed_dim=encoder_hidden, output_dim=latent_dim, num_heads=set_transformer_heads,num_layers=set_transformer_layers)
         self.unit_cell = UnitCell(isParam=theta_isParam, num_samples=num_theta_samples, mu=theta_mu, diag_S=theta_diagS)  
-        self.rotation_head = RotationHead(input_dim=latent_dim + 9, hidden_dim=rotation_hidden)
-        self.norm = nn.LayerNorm(latent_dim)
-        self.norm2 = nn.LayerNorm(9)
+        self.rotation_head = RotationHead(input_dim=latent_dim, hidden_dim=rotation_hidden)
+        # self.norm = nn.LayerNorm(latent_dim)
+        # self.norm2 = nn.LayerNorm(9)
         self.dropout = nn.Dropout(p=0.3)
     
     def forward(self, Q_batch,mask=None):
@@ -121,17 +121,18 @@ class QtoRModel(nn.Module):
         
         # Repeat z for each candidate B_i: shape becomes [B, C, latent_dim]
         z_repeated = z.unsqueeze(1).expand(b, c, z.shape[-1])
-        zB = self.norm(z_repeated)
-        B_flat_repeated = B_flat.unsqueeze(0).expand(b, c, 9)
-        B_flat_norm = self.norm2(B_flat_repeated)
-        zB = torch.cat([z_repeated, 0.3 * B_flat_repeated], dim=2)
+        zB = z_repeated
+        #zB = self.norm(z_repeated)
+        # B_flat_repeated = B_flat.unsqueeze(0).expand(b, c, 9)
+        # B_flat_norm = self.norm2(B_flat_repeated)
+        # zB = torch.cat([z_repeated, 0.3 * B_flat_repeated], dim=2) 
         # zB = self.norm(zB)
         # The rotation head expects input shape [B, C, input_dim] and outputs R of shape [B, C, 3, 3]
         R = self.rotation_head(zB)
         
         # Calculate mean and std deviation of R across B, where C is 1
-        R_mean = R.mean(dim=0)
-        R_std = R.std(dim=0)
+        # R_mean = R.mean(dim=0)
+        # R_std = R.std(dim=0)
         # print("Mean of R across B:", R_mean)
         # print("Std deviation of R across B:", R_std)
         return R, B_candidates, z

@@ -34,7 +34,8 @@ class SetTransformerEncoder(nn.Module):
             nn.Linear(embed_dim, embed_dim),
             nn.PReLU(),
             #nn.BatchNorm1d(embed_dim),
-            nn.Linear(embed_dim, output_dim)
+            nn.Linear(embed_dim, output_dim),
+            #nn.LayerNorm(output_dim)
         )
 
     def forward(self, x, mask=None):

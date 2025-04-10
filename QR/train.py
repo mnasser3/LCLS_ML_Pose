@@ -97,9 +97,9 @@ def train_QtoR_supervised(model, dataset_path, cell, num_epochs=1, batch_size=3,
             loss = loss_function(R_pred, U_gt)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
-            epoch_loss += loss.item()
-            errors_train.append(loss.item())
+            # optimizer.step()
+            # epoch_loss += loss.item()
+            # errors_train.append(loss.item())
             batch_size = U_gt.shape[0]
             total_loss += loss.item() * batch_size
             total_samples += batch_size

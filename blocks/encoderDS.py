@@ -28,7 +28,7 @@ class EncoderDS(nn.Module):
         self.rho = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.PReLU(),
-            nn.BatchNorm1d(hidden_dim),
+            # nn.BatchNorm1d(hidden_dim),
             nn.Linear(hidden_dim, output_dim),
         )
         # self.dropout = nn.Dropout(p=0.3)
